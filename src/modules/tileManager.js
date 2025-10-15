@@ -24,7 +24,7 @@ export class TileManager {
         return new Promise((resolve, reject) => {
             const loader = new THREE.TextureLoader();
             loader.load(
-                `/tiles-numbered/${index}.jpg`,
+                `./tiles-numbered/${index}.jpg`,
                 (texture) => {
                     texture.wrapS = THREE.RepeatWrapping;
                     texture.wrapT = THREE.RepeatWrapping;
