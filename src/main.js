@@ -94,7 +94,7 @@ async function initializeRibbon() {
     // Set initial button state
     truncateToggleBtn.classList.toggle('active', ribbon.truncateSegments);
     // Try to load the SVG path
-    const svgPoints = await loadSvgPath('/R.svg', 80, 5, 0);
+    const svgPoints = await loadSvgPath('./R.svg', 80, 5, 0);
     if (svgPoints && svgPoints.length >= 2) {
       // Use the normalizePoints function to scale and center
       const normalizedPoints = normalizePoints(svgPoints);
