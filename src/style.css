@@ -1,4 +1,229 @@
+html,
 body {
+  margin: 0;
+  overflow: hidden;
+  touch-action: none;
   font-family: sans-serif;
-  margin: 0px;
+  background: black;
+  /* Improve mobile viewport handling */
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  overscroll-behavior: contain;
+  /* Prevent bounce scrolling on mobile */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Welcome screen overlay */
+.welcome-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.welcome-content {
+  background-color: #222;
+  padding: 2rem;
+  border-radius: 1rem;
+  text-align: center;
+  max-width: 90%;
+  width: 400px;
+  color: #fff;
+}
+
+.welcome-content img {
+  padding: 1rem 2rem;
+}
+
+.welcome-content p {
+  color: #aaa;
+  margin: 1rem 0;
+  line-height: 1.5;
+  font-variant: all-small-caps;
+  letter-spacing: 3px;
+}
+
+#startAppBtn {
+  position: static;
+  display: inline-block;
+  background: #ffd700;
+  color: #333;
+  font-weight: bold;
+  margin-top: 1.5rem;
+  padding: 1rem 2rem;
+  border-radius: 2rem;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: background-color 0.3s;
+}
+
+#startAppBtn:hover {
+  background: #ffec8a;
+}
+
+
+#drawCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  pointer-events: none;
+  /* will enable during drawing mode */
+}
+
+button {
+  padding: 0.7em 1.3em;
+  border-radius: 1em;
+  font-size: 1.1em;
+  background: #333;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  opacity: 0.92;
+  user-select: none;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+#modeToggleButtons {
+  display: flex;
+  align-items: center;
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  left: 10px;
+}
+
+#modeToggleButtons button {
+  height: 54px;
+}
+
+#drawToggleBtn {
+  border-radius: 1em 0 0 1em;
+}
+
+#viewToggleBtn {
+  border-radius: 0 1em 1em 0;
+}
+
+/* Add styles for active mode button */
+.active-mode {
+  background-color: #4CAF50;
+  /* Green background */
+  color: white;
+  box-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
+}
+
+.active-mode .toggle-icon {
+  filter: brightness(1.2);
+}
+
+#modeToggleButtons button {
+  transition: all 0.3s ease;
+}
+
+#truncateToggleBtn {
+  position: absolute;
+  z-index: 2;
+  bottom: 10px;
+  right: 10px;
+  transition: all 0.3s ease;
+}
+
+#truncateToggleBtn.active {
+  background-color: #4CAF50;
+  color: white;
+  box-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
+}
+
+#importSvgBtn {
+  position: absolute;
+  z-index: 2;
+  bottom: 10px;
+  left: 10px;
+}
+
+
+/* Hide app buttons and checkerboard initially */
+#drawToggleBtn,
+#viewToggleBtn,
+#truncateToggleBtn,
+#importSvgBtn,
+#checkerboard {
+  display: none;
+}
+
+/* When the app is active, we'll apply this class to body */
+body.app-active #drawToggleBtn,
+body.app-active #viewToggleBtn,
+body.app-active #truncateToggleBtn,
+body.app-active #importSvgBtn {
+  display: block;
+}
+
+#checkerboard {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  background-size: 30px 30px;
+  background: #eeeeee22 url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill-opacity=".25" ><rect x="8" width="8" height="8" /><rect y="8" width="8" height="8" /></svg>');
+}
+
+/* Improve mobile orientation handling */
+#drawCanvas {
+  width: 100vw;
+  height: 100vh;
+}
+
+/* Handle safe area for devices with notches */
+@supports (padding: max(0px)) {
+  body.app-active #modeToggleButtons {
+    top: max(10px, env(safe-area-inset-top, 10px));
+    left: max(10px, env(safe-area-inset-left, 10px));
+  }
+
+  body.app-active #importSvgBtn {
+    bottom: max(10px, env(safe-area-inset-bottom, 10px));
+    left: max(10px, env(safe-area-inset-left, 10px));
+  }
+
+  body.app-active #truncateToggleBtn {
+    bottom: max(10px, env(safe-area-inset-bottom, 10px));
+    right: max(10px, env(safe-area-inset-right, 10px));
+  }
+}
+
+/* Responsive adjustments for landscape on small screens */
+@media screen and (orientation: landscape) and (max-height: 500px) {
+  .welcome-content {
+    padding: 1rem;
+    max-width: 95%;
+  }
+
+  .welcome-content img {
+    padding: 0.5rem 1rem;
+    max-height: 60px;
+  }
+
+  #startAppBtn {
+    padding: 0.5rem 1.5rem;
+    font-size: 1rem;
+    margin-top: 0.5rem;
+  }
 }

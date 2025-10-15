@@ -6,18 +6,118 @@
   <link
     rel="icon"
     type="image/svg+xml"
-    href="/play.svg"
+    href="/favicon.svg"
   />
   <meta
     name="viewport"
-    content="width=device-width, initial-scale=1.0"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no"
   />
-  <title>Vite App</title>
+  <title>dotdotdot</title>
 </head>
 
 <body>
-  <div id="app"> </div>
+  <!-- Welcome screen overlay -->
+  <div
+    id="welcomeScreen"
+    class="welcome-overlay"
+  >
+    <div class="welcome-content">
+      <h1>dotdotdot</h1>
+      <p>Render tiles along a path</p>
+      <button id="startAppBtn">Start</button>
+      <p style="color: rgba(255,255,255,0.2)">Sister project to <a
+          style="color: rgba(255,255,255,0.2)"
+          href="https://rivvon.ca/"
+        >rivvon</a></p>
+    </div>
+  </div>
 
+
+  <div id="modeToggleButtons">
+    <button id="drawToggleBtn">
+      <img
+        src="/draw.svg"
+        class="toggle-icon draw-icon"
+        alt="Draw mode"
+      />
+    </button>
+    <button id="viewToggleBtn">
+      <img
+        src="/view.svg"
+        class="toggle-icon view-icon"
+        alt="View mode"
+      />
+    </button>
+
+  </div>
+
+  <button
+    id="truncateToggleBtn"
+    title="Toggle Segment Gaps"
+  >
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+    >
+      <line
+        x1="4"
+        y1="12"
+        x2="9"
+        y2="12"
+      ></line>
+      <line
+        x1="11"
+        y1="12"
+        x2="16"
+        y2="12"
+      ></line>
+      <line
+        x1="18"
+        y1="12"
+        x2="20"
+        y2="12"
+      ></line>
+    </svg>
+  </button>
+
+  <button
+    id="importSvgBtn"
+    title="Import SVG"
+  >
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+    >
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+      <polyline points="17 8 12 3 7 8"></polyline>
+      <line
+        x1="12"
+        y1="3"
+        x2="12"
+        y2="15"
+      ></line>
+    </svg>
+  </button>
+
+  <!-- Hidden file input for SVG import -->
+  <input
+    type="file"
+    id="svgFileInput"
+    accept=".svg"
+    style="display: none;"
+  />
+
+  <div id="checkerboard"></div>
+
+  <canvas id="drawCanvas"></canvas>
   <script
     type="module"
     src="/src/main.js"
