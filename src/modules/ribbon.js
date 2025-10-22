@@ -188,13 +188,19 @@ export class Ribbon {
         geometry.setIndex(indices);
         geometry.computeVertexNormals();
 
-        // Get the appropriate tile texture
-        const tileTexture = this.tileManager.getTile(segmentIndex);
+        // Prefer KTX2 array material if available; fallback to JPG texture
+        let material = null;
+        if (this.tileManager && typeof this.tileManager.getMaterial === 'function') {
+            material = this.tileManager.getMaterial(segmentIndex) || null;
+        }
 
-        const material = new THREE.MeshBasicMaterial({
-            map: tileTexture,
-            side: THREE.DoubleSide
-        });
+        if (!material) {
+            const tileTexture = this.tileManager.getTile(segmentIndex);
+            material = new THREE.MeshBasicMaterial({
+                map: tileTexture,
+                side: THREE.DoubleSide
+            });
+        }
 
         return new THREE.Mesh(geometry, material);
     }
