@@ -8,7 +8,7 @@ export class Ribbon {
         this.tileManager = null;
         this.lastPoints = [];
         this.lastWidth = 1;
-        this.truncateSegments = true; // Toggle for segment gaps
+        this.truncateSegments = false; // Toggle for segment gaps
 
         // Animation parameters
         this.waveAmplitude = 0.2;
