@@ -24,8 +24,11 @@ startAppBtn.addEventListener('click', async () => {
   startAppBtn.disabled = true;
 
   try {
-    // Initialize tile manager
-    tileManager = new TileManager();
+    // Initialize tile manager 
+    //(use KTX2 arrays by default; 
+    // choose waves for loop or planes for ping-pong)
+    // source: 'ktx2-waves' or 'ktx2-planes' or 'jpg'
+    tileManager = new TileManager({ source: 'ktx2-planes', renderer, rotate90: true });
     await tileManager.loadAllTiles();
 
     // Hide welcome screen
@@ -198,6 +201,8 @@ function handleDrawingComplete(points) {
 function renderLoop() {
   requestAnimationFrame(renderLoop);
   const time = performance.now() / 1000;
+  // Advance KTX2 layer cycling (no-op for JPG mode)
+  tileManager?.tick?.(performance.now());
   updateAnimatedRibbon(time);
   controls.update();
   renderer.render(scene, camera);
