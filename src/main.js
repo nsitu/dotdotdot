@@ -78,11 +78,11 @@ startAppBtn.addEventListener('click', async () => {
 
 // --- UI toggle for drawing mode ---
 function setDrawingMode(enableDrawing) {
-  console.log('[Main] setDrawingMode', {
-    enableDrawing,
-    drawingManagerActive: !!drawingManager,
-    controlsEnabled: controls?.enabled
-  });
+  // console.log('[Main] setDrawingMode', {
+  //   enableDrawing,
+  //   drawingManagerActive: !!drawingManager,
+  //   controlsEnabled: controls?.enabled
+  // });
 
   // Update the mode state
   isDrawingMode = enableDrawing;
@@ -97,11 +97,11 @@ function setDrawingMode(enableDrawing) {
   drawToggleBtn.classList.toggle('active-mode', enableDrawing);
   viewToggleBtn.classList.toggle('active-mode', !enableDrawing);
 
-  console.log('[Main] Drawing mode updated', {
-    isDrawingMode,
-    canvasPointerEvents: drawCanvas.style.pointerEvents,
-    rendererOpacity: renderer.domElement.style.opacity
-  });
+  // console.log('[Main] Drawing mode updated', {
+  //   isDrawingMode,
+  //   canvasPointerEvents: drawCanvas.style.pointerEvents,
+  //   rendererOpacity: renderer.domElement.style.opacity
+  // });
 }
 
 drawToggleBtn.addEventListener('click', () => setDrawingMode(true));
@@ -253,8 +253,8 @@ function handleDrawingComplete(points) {
 
 // --- Render Loop with animated ribbon ---
 function startRenderLoop() {
-  let frameCount = 0;
-  const logInterval = 300; // Log every 300 frames (about every 5 seconds at 60fps)
+  // let frameCount = 0;
+  // const logInterval = 300; // Log every 300 frames (about every 5 seconds at 60fps)
 
   if (rendererType === 'webgpu') {
     // WebGPU uses setAnimationLoop
@@ -267,17 +267,17 @@ function startRenderLoop() {
       renderer.render(scene, camera);
 
       // Periodic logging
-      if (frameCount % logInterval === 0) {
-        console.log('[Render] Scene state', {
-          children: scene.children.length,
-          ribbonSegments: ribbon?.meshSegments?.length || 0,
-          camera: {
-            position: camera.position,
-            rotation: camera.rotation
-          }
-        });
-      }
-      frameCount++;
+      // if (frameCount % logInterval === 0) {
+      //   console.log('[Render] Scene state', {
+      //     children: scene.children.length,
+      //     ribbonSegments: ribbon?.meshSegments?.length || 0,
+      //     camera: {
+      //       position: camera.position,
+      //       rotation: camera.rotation
+      //     }
+      //   });
+      // }
+      // frameCount++;
     });
     console.log('[App] WebGPU animation loop started');
   } else {
@@ -292,17 +292,17 @@ function startRenderLoop() {
       renderer.render(scene, camera);
 
       // Periodic logging
-      if (frameCount % logInterval === 0) {
-        console.log('[Render] Scene state', {
-          children: scene.children.length,
-          ribbonSegments: ribbon?.meshSegments?.length || 0,
-          camera: {
-            position: camera.position,
-            rotation: camera.rotation
-          }
-        });
-      }
-      frameCount++;
+      // if (frameCount % logInterval === 0) {
+      //   console.log('[Render] Scene state', {
+      //     children: scene.children.length,
+      //     ribbonSegments: ribbon?.meshSegments?.length || 0,
+      //     camera: {
+      //       position: camera.position,
+      //       rotation: camera.rotation
+      //     }
+      //   });
+      // }
+      // frameCount++;
     }
     renderLoop();
     console.log('[App] WebGL animation loop started');

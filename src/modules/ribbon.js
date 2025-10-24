@@ -24,11 +24,11 @@ export class Ribbon {
     buildFromPoints(points, width = 1, time = 0) {
         if (points.length < 2) return;
 
-        console.log('[Ribbon] buildFromPoints called', {
-            pointCount: points.length,
-            width: width,
-            time: time
-        });
+        // console.log('[Ribbon] buildFromPoints called', {
+        //     pointCount: points.length,
+        //     width: width,
+        //     time: time
+        // });
 
         // Store for animation updates
         this.lastPoints = points.map(p => p.clone());
@@ -43,19 +43,19 @@ export class Ribbon {
         const segmentLength = width; // Each segment roughly square (width ≈ height)
         const segmentCount = Math.max(1, Math.ceil(totalLength / segmentLength));
 
-        console.log('[Ribbon] buildSegmentedRibbon starting', {
-            totalLength: totalLength.toFixed(2),
-            segmentLength: segmentLength,
-            segmentCount: segmentCount,
-            tileManagerAvailable: !!this.tileManager
-        });
+        // console.log('[Ribbon] buildSegmentedRibbon starting', {
+        //     totalLength: totalLength.toFixed(2),
+        //     segmentLength: segmentLength,
+        //     segmentCount: segmentCount,
+        //     tileManagerAvailable: !!this.tileManager
+        // });
 
         // Clean up old segments
         this.cleanupOldMesh();
 
         // Create curve for the path
         const curve = this.createCurveFromPoints(points);
-        console.log('[Ribbon] Curve created from points');
+        // console.log('[Ribbon] Curve created from points');
 
         // Calculate initial reference normal for consistency
         const initialTangent = curve.getTangent(0).normalize();
@@ -99,7 +99,7 @@ export class Ribbon {
             prevNormal = normal;
         }
 
-        console.log('[Ribbon] Normal cache computed', { totalPoints });
+        // console.log('[Ribbon] Normal cache computed', { totalPoints });
 
         // Build each segment using the pre-calculated normals
         for (let segIdx = 0; segIdx < segmentCount; segIdx++) {
@@ -123,13 +123,13 @@ export class Ribbon {
                 this.meshSegments.push(segmentMesh);
                 this.scene.add(segmentMesh);
             } else {
-                console.warn('[Ribbon] Failed to create segment', segIdx);
+                // console.warn('[Ribbon] Failed to create segment', segIdx);
             }
         }
 
-        console.log('[Ribbon] All segments created and added to scene', {
-            totalSegments: this.meshSegments.length
-        });
+        // console.log('[Ribbon] All segments created and added to scene', {
+        //     totalSegments: this.meshSegments.length
+        // });
 
         return this.meshSegments;
     }
@@ -162,11 +162,11 @@ export class Ribbon {
     }
 
     createRibbonSegmentWithCache(curve, startT, endT, width, time, segmentIndex, normalCache, startPointIdx, pointsPerSegment) {
-        console.log('[Ribbon] Creating segment', segmentIndex, {
-            startT: startT.toFixed(3),
-            endT: endT.toFixed(3),
-            hasTileManager: !!this.tileManager
-        });
+        // console.log('[Ribbon] Creating segment', segmentIndex, {
+        //     startT: startT.toFixed(3),
+        //     endT: endT.toFixed(3),
+        //     hasTileManager: !!this.tileManager
+        // });
 
         const geometry = new THREE.BufferGeometry();
         const positions = [];
@@ -220,7 +220,7 @@ export class Ribbon {
         let material = null;
         if (this.tileManager && typeof this.tileManager.getMaterial === 'function') {
             material = this.tileManager.getMaterial(segmentIndex) || null;
-            console.log('[Ribbon] Segment', segmentIndex, 'material from tileManager:', !!material);
+            // console.log('[Ribbon] Segment', segmentIndex, 'material from tileManager:', !!material);
         }
 
         if (!material) {
@@ -229,14 +229,14 @@ export class Ribbon {
                 map: tileTexture,
                 side: THREE.DoubleSide
             });
-            console.log('[Ribbon] Segment', segmentIndex, 'using fallback JPG material');
+            // console.log('[Ribbon] Segment', segmentIndex, 'using fallback JPG material');
         }
 
         const mesh = new THREE.Mesh(geometry, material);
-        console.log('[Ribbon] Segment', segmentIndex, 'mesh created', {
-            positions: positions.length / 3,
-            indices: indices.length
-        });
+        // console.log('[Ribbon] Segment', segmentIndex, 'mesh created', {
+        //     positions: positions.length / 3,
+        //     indices: indices.length
+        // });
 
         return mesh;
     }
@@ -248,9 +248,9 @@ export class Ribbon {
     }
 
     cleanupOldMesh() {
-        console.log('[Ribbon] Cleaning up old meshes', {
-            segmentCount: this.meshSegments.length
-        });
+        // console.log('[Ribbon] Cleaning up old meshes', {
+        //     segmentCount: this.meshSegments.length
+        // });
         // Clean up segmented meshes
         this.meshSegments.forEach(mesh => {
             if (mesh.geometry) mesh.geometry.dispose();
@@ -258,7 +258,7 @@ export class Ribbon {
             this.scene.remove(mesh);
         });
         this.meshSegments = [];
-        console.log('[Ribbon] Cleanup complete');
+        // console.log('[Ribbon] Cleanup complete');
     }
 
     dispose() {
@@ -312,36 +312,36 @@ export class Ribbon {
     createRibbonFromDrawing(drawPoints) {
         if (drawPoints.length < 2) return;
 
-        console.log('[Ribbon] Starting createRibbonFromDrawing', {
-            inputPoints: drawPoints.length
-        });
+        // console.log('[Ribbon] Starting createRibbonFromDrawing', {
+        //     inputPoints: drawPoints.length
+        // });
 
         // Convert 2D screen points to normalized coordinates
         const normalizedPoints = this.normalizeDrawingPoints(drawPoints);
-        console.log('[Ribbon] Normalized points', {
-            count: normalizedPoints.length,
-            sample: normalizedPoints.slice(0, 3)
-        });
+        // console.log('[Ribbon] Normalized points', {
+        //     count: normalizedPoints.length,
+        //     sample: normalizedPoints.slice(0, 3)
+        // });
 
         // Create 3D points from normalized 2D points (all with same Z value)
         const points3D = normalizedPoints.map(p => new THREE.Vector3(p.x, p.y, 0));
-        console.log('[Ribbon] Created 3D points', {
-            count: points3D.length
-        });
+        // console.log('[Ribbon] Created 3D points', {
+        //     count: points3D.length
+        // });
 
         // Apply smoothing
         const smoothedPoints = this.smoothPoints(points3D, 150);
-        console.log('[Ribbon] Smoothed points', {
-            count: smoothedPoints.length
-        });
+        // console.log('[Ribbon] Smoothed points', {
+        //     count: smoothedPoints.length
+        // });
 
         // Build ribbon
-        console.log('[Ribbon] Building ribbon from points...');
+        // console.log('[Ribbon] Building ribbon from points...');
         const result = this.buildFromPoints(smoothedPoints, 1.2);
-        console.log('[Ribbon] Ribbon build complete', {
-            segmentCount: this.meshSegments.length,
-            result: result ? 'success' : 'no result'
-        });
+        // console.log('[Ribbon] Ribbon build complete', {
+        //     segmentCount: this.meshSegments.length,
+        //     result: result ? 'success' : 'no result'
+        // });
 
         return result;
     }
