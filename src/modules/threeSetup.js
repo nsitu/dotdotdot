@@ -1,25 +1,30 @@
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { initThreeWebGL } from './threeSetup-webgl.js';
+import { initThreeWebGPU } from './threeSetup-webgpu.js';
 
-export function initThree() {
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 0, 10);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
+/**
+ * Factory function to initialize Three.js with appropriate renderer
+ * @param {string} rendererType - 'webgl' or 'webgpu'
+ * @returns {Promise<Object>} { scene, camera, renderer, controls, resetCamera, rendererType }
+ */
+export async function initThree(rendererType = 'webgl') {
+    console.log(`[ThreeSetup] Initializing ${rendererType.toUpperCase()} renderer`);
 
-    // Function to reset camera view to initial position
-    function resetCamera() {
-        // Reset to initial position and orientation
-        camera.position.set(0, 0, 10); // Set to your preferred default position
-        camera.lookAt(0, 0, 0);
-        controls.reset(); // Reset the orbit controls 
-        // Optional: smooth transition to the reset position
-        controls.update();
+    try {
+        if (rendererType === 'webgpu') {
+            return await initThreeWebGPU();
+        } else {
+            // WebGL is synchronous but we return it wrapped for consistent API
+            return initThreeWebGL();
+        }
+    } catch (error) {
+        console.error(`[ThreeSetup] Failed to initialize ${rendererType}:`, error);
+
+        // If WebGPU fails, fallback to WebGL
+        if (rendererType === 'webgpu') {
+            console.warn('[ThreeSetup] Falling back to WebGL');
+            return initThreeWebGL();
+        }
+
+        throw error;
     }
-
-    return { scene, camera, renderer, controls, resetCamera };
 }

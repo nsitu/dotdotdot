@@ -1,11 +1,16 @@
 import * as THREE from 'three';
+import * as THREE_WEBGPU from 'three/webgpu';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+
+// TSL imports for WebGPU materials
+import { texture, uniform, uv, float, vec2 } from 'three/tsl';
 
 export class TileManager {
     constructor(options = {}) {
         const {
             source = 'jpg',
             renderer = null,
+            rendererType = 'webgl',
             tileCount = 32,
             rotate90 = false
         } = options;
@@ -15,6 +20,7 @@ export class TileManager {
         this.tileSize = 512;
         this.loadedCount = 0;
         this.renderer = renderer;
+        this.rendererType = rendererType; // Store renderer type for material creation
 
         // JPG path
         this.tiles = [];
@@ -68,19 +74,31 @@ export class TileManager {
     }
 
     async #initKTX2() {
-        // Require WebGL2 for sampler2DArray
-        const gl2 = document.createElement('canvas').getContext('webgl2');
-        if (!gl2) {
-            console.warn('[TileManager] WebGL2 not available; cannot use KTX2 array textures');
-            return false;
+        // For WebGL: Require WebGL2 for sampler2DArray
+        if (this.rendererType === 'webgl') {
+            const gl2 = document.createElement('canvas').getContext('webgl2');
+            if (!gl2) {
+                console.warn('[TileManager] WebGL2 not available; cannot use KTX2 array textures');
+                return false;
+            }
         }
 
         try {
+            // Use the same KTX2Loader for both renderer types
             this._ktx2Loader = new KTX2Loader();
             this._ktx2Loader.setTranscoderPath('./wasm/');
 
             if (this.renderer) {
-                this._ktx2Loader.detectSupport(this.renderer);
+                // Use async detection for WebGPU, sync for WebGL
+                if (this.rendererType === 'webgpu') {
+                    // CRITICAL: For WebGPU, we must ensure the backend is ready
+                    // The renderer should already be initialized via renderer.init()
+                    console.log('[TileManager] Detecting WebGPU support for KTX2...');
+                    await this._ktx2Loader.detectSupportAsync(this.renderer);
+                    console.log('[TileManager] WebGPU KTX2 support detected');
+                } else {
+                    this._ktx2Loader.detectSupport(this.renderer);
+                }
             } else {
                 // Best-effort: create a temporary renderer to detect support
                 const tempRenderer = new THREE.WebGLRenderer({ antialias: false });
@@ -95,6 +113,14 @@ export class TileManager {
     }
 
     #createArrayMaterial(arrayTexture) {
+        if (this.rendererType === 'webgpu') {
+            return this.#createArrayMaterialWebGPU(arrayTexture);
+        } else {
+            return this.#createArrayMaterialWebGL(arrayTexture);
+        }
+    }
+
+    #createArrayMaterialWebGL(arrayTexture) {
         const layerCount = arrayTexture.image?.depth || 1;
 
         const material = new THREE.ShaderMaterial({
@@ -136,6 +162,51 @@ export class TileManager {
         return material;
     }
 
+    #createArrayMaterialWebGPU(arrayTexture) {
+        const layerCount = arrayTexture.image?.depth || 1;
+
+        // Create uniforms for layer and rotation
+        const layerUniform = uniform(this.sharedLayerUniform.value);
+        const rotateUniform = uniform(this.sharedRotateUniform.value);
+
+        // Get base UV coordinates
+        const baseUV = uv();
+
+        // Step 1: Optionally rotate by 90 degrees clockwise
+        // Rotation: (x, y) → (y, 1 - x)
+        // Using TSL's select() for conditional: condition.select(valueIfTrue, valueIfFalse)
+        const rotatedUV = rotateUniform.equal(1).select(
+            // If rotate is enabled: create vec2(y, 1-x)
+            vec2(baseUV.y, float(1).sub(baseUV.x)),
+            // If rotate is disabled: keep original UV
+            baseUV
+        );
+
+        // Step 2: Flip V coordinate to match texture orientation
+        // Flip: (x, y) → (x, 1 - y)
+        const flippedUV = rotatedUV.toVar().setY(float(1).sub(rotatedUV.y));
+
+        // Create NodeMaterial with texture array sampling using .depth()
+        const material = new THREE_WEBGPU.NodeMaterial();
+        material.colorNode = texture(arrayTexture, flippedUV).depth(layerUniform);
+        material.transparent = false;
+        material.depthWrite = true;
+        material.side = THREE.DoubleSide;
+
+        // Store references to uniforms for updates
+        material._layerUniform = layerUniform;
+        material._rotateUniform = rotateUniform;
+
+        console.log('[TileManager] WebGPU material created:', {
+            layerCount,
+            textureDepth: arrayTexture.image?.depth,
+            textureFormat: arrayTexture.format,
+            rotate90: this.rotate90
+        });
+
+        return material;
+    }
+
     async #loadKTX2Tile(index) {
         return new Promise((resolve, reject) => {
             if (!this._ktx2Loader) {
@@ -156,6 +227,11 @@ export class TileManager {
                     arrayTexture.wrapS = THREE.ClampToEdgeWrapping;
                     arrayTexture.wrapT = THREE.ClampToEdgeWrapping;
 
+                    // Set color space for WebGL to match WebGPU brightness
+                    if (this.rendererType === 'webgl') {
+                        arrayTexture.colorSpace = THREE.LinearSRGBColorSpace;
+                    }
+
                     if (this.layerCount === 0) {
                         this.layerCount = arrayTexture.image?.depth || 1;
                         // Reset cycling state
@@ -175,6 +251,12 @@ export class TileManager {
                 undefined,
                 (error) => {
                     console.error(`[TileManager] Failed to load KTX2 tile ${index}:`, error);
+                    console.error(`[TileManager] Error details:`, {
+                        message: error?.message,
+                        stack: error?.stack,
+                        name: error?.name,
+                        errorString: String(error)
+                    });
                     // Create a fallback solid-color material to keep app running
                     const fallback = new THREE.MeshBasicMaterial({ color: new THREE.Color(`hsl(${index * 11}, 70%, 50%)`) });
                     resolve(fallback);
@@ -193,6 +275,12 @@ export class TileManager {
                     texture.wrapT = THREE.RepeatWrapping;
                     texture.minFilter = THREE.LinearFilter;
                     texture.magFilter = THREE.LinearFilter;
+
+                    // Set color space for WebGL to match WebGPU brightness
+                    if (this.rendererType === 'webgl') {
+                        texture.colorSpace = THREE.LinearSRGBColorSpace;
+                    }
+
                     resolve(texture);
                 },
                 undefined,
@@ -259,6 +347,15 @@ export class TileManager {
             // Update shared uniform (clamped)
             const clamped = Math.max(0, Math.min(this.currentLayer, Math.max(0, this.layerCount - 1)));
             this.sharedLayerUniform.value = clamped | 0; // ensure int
+
+            // For WebGPU, also update TSL uniform nodes
+            if (this.rendererType === 'webgpu') {
+                this.materials.forEach(material => {
+                    if (material._layerUniform) {
+                        material._layerUniform.value = clamped;
+                    }
+                });
+            }
         }
     }
 
@@ -269,5 +366,14 @@ export class TileManager {
     setRotate90(flag) {
         this.rotate90 = !!flag;
         this.sharedRotateUniform.value = this.rotate90 ? 1 : 0;
+
+        // For WebGPU, also update TSL uniform nodes
+        if (this.rendererType === 'webgpu') {
+            this.materials.forEach(material => {
+                if (material._rotateUniform) {
+                    material._rotateUniform.value = this.rotate90 ? 1 : 0;
+                }
+            });
+        }
     }
 }
