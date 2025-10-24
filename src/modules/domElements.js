@@ -10,3 +10,4 @@ export const drawCanvas = document.getElementById('drawCanvas');
 export const fileInput = document.getElementById('svgFileInput');
 export const checkerboardDiv = document.getElementById('checkerboard');
 export const welcomeScreen = document.getElementById('welcomeScreen');
+export const rendererIndicator = document.getElementById('rendererIndicator');

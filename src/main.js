@@ -5,7 +5,7 @@ import {
   importSvgBtn, drawToggleBtn, viewToggleBtn, truncateToggleBtn, startAppBtn,
   fileInput,
   checkerboardDiv,
-  welcomeScreen, drawCanvas
+  welcomeScreen, drawCanvas, rendererIndicator
 } from './modules/domElements.js';
 import { loadSvgPath, parseSvgContent, normalizePoints } from './modules/svgPathToPoints.js';
 import { Ribbon } from './modules/ribbon.js';
@@ -41,6 +41,10 @@ startAppBtn.addEventListener('click', async () => {
     console.log(`[App] Three.js initialized with ${rendererType}`);
 
     startAppBtn.textContent = 'Loading textures...';
+
+    // Update renderer indicator
+    rendererIndicator.textContent = rendererType.toUpperCase();
+    rendererIndicator.className = `renderer-indicator ${rendererType}`;
 
     // Initialize tile manager 
     //(use KTX2 arrays by default; 
