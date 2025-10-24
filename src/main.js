@@ -78,6 +78,12 @@ startAppBtn.addEventListener('click', async () => {
 
 // --- UI toggle for drawing mode ---
 function setDrawingMode(enableDrawing) {
+  console.log('[Main] setDrawingMode', {
+    enableDrawing,
+    drawingManagerActive: !!drawingManager,
+    controlsEnabled: controls?.enabled
+  });
+
   // Update the mode state
   isDrawingMode = enableDrawing;
   // Enable/disable orbit controls
@@ -90,6 +96,12 @@ function setDrawingMode(enableDrawing) {
   // Update button styles
   drawToggleBtn.classList.toggle('active-mode', enableDrawing);
   viewToggleBtn.classList.toggle('active-mode', !enableDrawing);
+
+  console.log('[Main] Drawing mode updated', {
+    isDrawingMode,
+    canvasPointerEvents: drawCanvas.style.pointerEvents,
+    rendererOpacity: renderer.domElement.style.opacity
+  });
 }
 
 drawToggleBtn.addEventListener('click', () => setDrawingMode(true));
@@ -213,22 +225,37 @@ resizeCanvas();
 
 // --- Drawing callback ---
 function handleDrawingComplete(points) {
+  console.log('[Main] handleDrawingComplete called', {
+    pointCount: points.length,
+    ribbonExists: !!ribbon,
+    sceneExists: !!scene
+  });
+
   if (points.length >= 2) {
+    console.log('[Main] Resetting camera before ribbon creation');
     // Reset camera before building the new ribbon
     resetCamera();
 
+    console.log('[Main] Creating ribbon from drawing points...');
     // Use the ribbon module to create from drawing points
-    ribbon.createRibbonFromDrawing(points);
+    const result = ribbon.createRibbonFromDrawing(points);
+    console.log('[Main] Ribbon creation result:', result ? 'success' : 'undefined');
+  } else {
+    console.warn('[Main] Not enough points for ribbon creation');
   }
 
   // Automatically exit drawing mode
   if (isDrawingMode) {
+    console.log('[Main] Exiting drawing mode');
     setDrawingMode(false);
   }
 }
 
 // --- Render Loop with animated ribbon ---
 function startRenderLoop() {
+  let frameCount = 0;
+  const logInterval = 300; // Log every 300 frames (about every 5 seconds at 60fps)
+
   if (rendererType === 'webgpu') {
     // WebGPU uses setAnimationLoop
     renderer.setAnimationLoop(() => {
@@ -238,6 +265,19 @@ function startRenderLoop() {
       updateAnimatedRibbon(time);
       controls.update();
       renderer.render(scene, camera);
+
+      // Periodic logging
+      if (frameCount % logInterval === 0) {
+        console.log('[Render] Scene state', {
+          children: scene.children.length,
+          ribbonSegments: ribbon?.meshSegments?.length || 0,
+          camera: {
+            position: camera.position,
+            rotation: camera.rotation
+          }
+        });
+      }
+      frameCount++;
     });
     console.log('[App] WebGPU animation loop started');
   } else {
@@ -250,6 +290,19 @@ function startRenderLoop() {
       updateAnimatedRibbon(time);
       controls.update();
       renderer.render(scene, camera);
+
+      // Periodic logging
+      if (frameCount % logInterval === 0) {
+        console.log('[Render] Scene state', {
+          children: scene.children.length,
+          ribbonSegments: ribbon?.meshSegments?.length || 0,
+          camera: {
+            position: camera.position,
+            rotation: camera.rotation
+          }
+        });
+      }
+      frameCount++;
     }
     renderLoop();
     console.log('[App] WebGL animation loop started');

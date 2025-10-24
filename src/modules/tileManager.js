@@ -300,12 +300,23 @@ export class TileManager {
     }
 
     getTile(index) {
-        return this.tiles[index % this.tileCount];
+        const tile = this.tiles[index % this.tileCount];
+        console.log('[TileManager] getTile', index, {
+            tileExists: !!tile,
+            totalTiles: this.tiles.length
+        });
+        return tile;
     }
 
     getMaterial(index) {
         if (!this.isKTX2) return undefined;
-        return this.materials[index % this.tileCount];
+        const material = this.materials[index % this.tileCount];
+        console.log('[TileManager] getMaterial', index, {
+            isKTX2: this.isKTX2,
+            materialExists: !!material,
+            materialType: material?.constructor?.name || 'undefined'
+        });
+        return material;
     }
 
     getTileSequence(startIndex, count) {
