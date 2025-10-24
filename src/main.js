@@ -1,5 +1,6 @@
 import './style.css'
 import { initThree } from './modules/threeSetup.js';
+import { chooseRenderer } from './utils/renderer-utils.js';
 import {
   importSvgBtn, drawToggleBtn, viewToggleBtn, truncateToggleBtn, startAppBtn,
   fileInput,
@@ -11,7 +12,7 @@ import { Ribbon } from './modules/ribbon.js';
 import { DrawingManager } from './modules/drawing.js';
 import { TileManager } from './modules/tileManager.js';
 
-const { scene, camera, renderer, controls, resetCamera } = initThree();
+let scene, camera, renderer, controls, resetCamera, rendererType;
 
 let tileManager;
 let isDrawingMode = false;
@@ -20,15 +21,37 @@ let drawingManager;
 
 // Initialize app after user clicks start button
 startAppBtn.addEventListener('click', async () => {
-  startAppBtn.textContent = 'Loading textures...';
+  startAppBtn.textContent = 'Initializing...';
   startAppBtn.disabled = true;
 
   try {
+    // Choose renderer type (WebGPU preferred, WebGL fallback)
+    rendererType = await chooseRenderer();
+    console.log(`[App] Using renderer: ${rendererType}`);
+
+    // Initialize Three.js with chosen renderer
+    const threeContext = await initThree(rendererType);
+    scene = threeContext.scene;
+    camera = threeContext.camera;
+    renderer = threeContext.renderer;
+    controls = threeContext.controls;
+    resetCamera = threeContext.resetCamera;
+    rendererType = threeContext.rendererType; // Actual renderer used (may differ if fallback occurred)
+
+    console.log(`[App] Three.js initialized with ${rendererType}`);
+
+    startAppBtn.textContent = 'Loading textures...';
+
     // Initialize tile manager 
     //(use KTX2 arrays by default; 
     // choose waves for loop or planes for ping-pong)
     // source: 'ktx2-waves' or 'ktx2-planes' or 'jpg'
-    tileManager = new TileManager({ source: 'ktx2-planes', renderer, rotate90: true });
+    tileManager = new TileManager({
+      source: 'ktx2-planes',
+      renderer,
+      rendererType,
+      rotate90: true
+    });
     await tileManager.loadAllTiles();
 
     // Hide welcome screen
@@ -39,9 +62,12 @@ startAppBtn.addEventListener('click', async () => {
     await initializeRibbon();
     // Initialize drawing manager
     drawingManager = new DrawingManager(drawCanvas, handleDrawingComplete);
+
+    // Start render loop
+    startRenderLoop();
   } catch (error) {
     console.error('Error starting application:', error);
-    startAppBtn.textContent = 'Failed to load textures. Try again?';
+    startAppBtn.textContent = 'Failed to load. Try again?';
     startAppBtn.disabled = false;
   }
 });
@@ -198,16 +224,33 @@ function handleDrawingComplete(points) {
 }
 
 // --- Render Loop with animated ribbon ---
-function renderLoop() {
-  requestAnimationFrame(renderLoop);
-  const time = performance.now() / 1000;
-  // Advance KTX2 layer cycling (no-op for JPG mode)
-  tileManager?.tick?.(performance.now());
-  updateAnimatedRibbon(time);
-  controls.update();
-  renderer.render(scene, camera);
+function startRenderLoop() {
+  if (rendererType === 'webgpu') {
+    // WebGPU uses setAnimationLoop
+    renderer.setAnimationLoop(() => {
+      const time = performance.now() / 1000;
+      // Advance KTX2 layer cycling (no-op for JPG mode)
+      tileManager?.tick?.(performance.now());
+      updateAnimatedRibbon(time);
+      controls.update();
+      renderer.render(scene, camera);
+    });
+    console.log('[App] WebGPU animation loop started');
+  } else {
+    // WebGL uses requestAnimationFrame
+    function renderLoop() {
+      requestAnimationFrame(renderLoop);
+      const time = performance.now() / 1000;
+      // Advance KTX2 layer cycling (no-op for JPG mode)
+      tileManager?.tick?.(performance.now());
+      updateAnimatedRibbon(time);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    renderLoop();
+    console.log('[App] WebGL animation loop started');
+  }
 }
-renderLoop();
 
 // Resource Cleanup
 window.addEventListener('beforeunload', () => {
