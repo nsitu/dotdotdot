@@ -156,6 +156,39 @@ button {
   left: 10px;
 }
 
+/* Renderer indicator */
+.renderer-indicator {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 100;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: none;
+  font-family: monospace;
+}
+
+.renderer-indicator.webgpu {
+  border-color: rgba(76, 175, 80, 0.4);
+  color: #4CAF50;
+}
+
+.renderer-indicator.webgl {
+  border-color: rgba(33, 150, 243, 0.4);
+  color: #2196F3;
+}
+
+body.app-active .renderer-indicator {
+  display: block;
+}
 
 /* Hide app buttons and checkerboard initially */
 #drawToggleBtn,
