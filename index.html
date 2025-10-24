@@ -12,6 +12,17 @@
     name="viewport"
     content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no"
   />
+
+  <script>
+    // Load Eruda dev tools if ?eruda parameter is present
+    if (new URLSearchParams(window.location.search).has('eruda')) {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/eruda';
+      script.onload = () => eruda.init();
+      document.body.appendChild(script);
+    }
+  </script>
+
   <title>dotdotdot</title>
 </head>
 
