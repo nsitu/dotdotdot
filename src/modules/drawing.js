@@ -59,6 +59,11 @@ export class DrawingManager {
     handlePointerDown(e) {
         if (!this.isActive) return;
 
+        console.log('[Drawing] Pointer down - starting new drawing', {
+            position: { x: e.clientX, y: e.clientY },
+            pointerId: e.pointerId
+        });
+
         this.points = [];
         this.points.push({ x: e.clientX, y: e.clientY });
         this.clearCanvas();
@@ -74,6 +79,14 @@ export class DrawingManager {
 
         this.points.push({ x: e.clientX, y: e.clientY });
         this.drawStroke();
+
+        // Log periodically (every 10 points) to avoid spam
+        if (this.points.length % 10 === 0) {
+            console.log('[Drawing] Collecting points...', {
+                pointCount: this.points.length,
+                lastPoint: { x: e.clientX, y: e.clientY }
+            });
+        }
     }
 
     /**
@@ -83,8 +96,17 @@ export class DrawingManager {
     handlePointerUp(e) {
         if (!this.isActive) return;
 
+        console.log('[Drawing] Pointer up - drawing complete', {
+            totalPoints: this.points.length,
+            pointerId: e.pointerId,
+            willTriggerCallback: this.points.length >= 2
+        });
+
         if (this.points.length >= 2) {
+            console.log('[Drawing] Calling onDrawingComplete callback with', this.points.length, 'points');
             this.onDrawingComplete(this.points);
+        } else {
+            console.warn('[Drawing] Not enough points to create ribbon (need at least 2)');
         }
     }
 
