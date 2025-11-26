@@ -293,11 +293,27 @@ function handleDrawingComplete(points) {
     console.warn('[Main] Not enough points for ribbon creation');
   }
 
-  // Automatically exit drawing mode
-  if (isDrawingMode) {
-    console.log('[Main] Exiting drawing mode');
-    setDrawingMode(false);
+  // Automatically exit drawing mode (always attempt after a completed drawing)
+  console.log('[Main] Exiting drawing mode (forcing false)');
+  setDrawingMode(false);
+
+  // Log post-exit visibility state
+  if (renderer && renderer.domElement) {
+    const dom = renderer.domElement;
+    const domStyle = getComputedStyle(dom);
+    console.log('[Main] Post-exit drawing mode state', {
+      isDrawingMode,
+      domStyle: {
+        display: domStyle.display,
+        opacity: domStyle.opacity,
+        visibility: domStyle.visibility
+      },
+      checkerboardDisplay: checkerboardDiv
+        ? getComputedStyle(checkerboardDiv).display
+        : 'n/a'
+    });
   }
+
 }
 
 // --- Render Loop with animated ribbon ---
