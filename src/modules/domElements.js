@@ -7,7 +7,6 @@ export const startAppBtn = document.getElementById('startAppBtn');
 export const restartLoopBtn = document.getElementById('restartLoopBtn');
 export const backendToggleBtn = document.getElementById('backendToggleBtn');
 export const materialModeToggleBtn = document.getElementById('materialModeToggleBtn');
-export const flagBlankBtn = document.getElementById('flagBlankBtn');
 // Canvas element
 export const drawCanvas = document.getElementById('drawCanvas');
 // Other elements
