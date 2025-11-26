@@ -34,7 +34,43 @@ export class Ribbon {
         this.lastPoints = points.map(p => p.clone());
         this.lastWidth = width;
 
-        return this.buildSegmentedRibbon(points, width, time);
+        const segments = this.buildSegmentedRibbon(points, width, time);
+
+        // After building, automatically log any segments with very small bounds
+        // to help diagnose degenerate geometry that may cause rendering issues
+        if (segments && segments.length) {
+            const tinyThreshold = 0.05;
+            const tinySegments = [];
+
+            segments.forEach((mesh, index) => {
+                if (!mesh || !mesh.geometry) return;
+
+                const geom = mesh.geometry;
+
+                try {
+                    geom.computeBoundingSphere();
+                } catch (e) {
+                    return;
+                }
+
+                const sphere = geom.boundingSphere;
+                if (!sphere) return;
+
+                if (sphere.radius < tinyThreshold) {
+                    tinySegments.push({ index, radius: sphere.radius, center: sphere.center });
+                }
+            });
+
+            if (tinySegments.length > 0) {
+                console.log('[Ribbon] Tiny segments detected after buildFromPoints', {
+                    tinyThreshold,
+                    tinySegmentsCount: tinySegments.length,
+                    tinySegments
+                });
+            }
+        }
+
+        return segments;
     }
 
     buildSegmentedRibbon(points, width, time) {
