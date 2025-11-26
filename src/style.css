@@ -207,6 +207,22 @@ body.app-active #importSvgBtn {
   display: block;
 }
 
+/* Debug controls: place just below the mode toggle buttons */
+#debugControls {
+  position: absolute;
+  z-index: 2;
+  left: 10px;
+  top: 70px; /* slightly below #modeToggleButtons (which are at top:10px, height:54px) */
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#debugControls button {
+  font-size: 0.9em;
+  padding: 0.4em 0.9em;
+}
+
 #checkerboard {
   position: fixed;
   top: 0;
