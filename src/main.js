@@ -2,10 +2,18 @@ import './style.css'
 import { initThree } from './modules/threeSetup.js';
 import { chooseRenderer } from './utils/renderer-utils.js';
 import {
-  importSvgBtn, drawToggleBtn, viewToggleBtn, truncateToggleBtn, startAppBtn,
+  importSvgBtn,
+  drawToggleBtn,
+  viewToggleBtn,
+  truncateToggleBtn,
+  startAppBtn,
+  restartLoopBtn,
+  backendToggleBtn,
   fileInput,
   checkerboardDiv,
-  welcomeScreen, drawCanvas, rendererIndicator
+  welcomeScreen,
+  drawCanvas,
+  rendererIndicator
 } from './modules/domElements.js';
 import { loadSvgPath, parseSvgContent, normalizePoints } from './modules/svgPathToPoints.js';
 import { Ribbon } from './modules/ribbon.js';
@@ -19,6 +27,9 @@ let tileManager;
 let isDrawingMode = false;
 let ribbon = null;
 let drawingManager;
+let testCube = null;
+let useWebGLOnly = false; // quick backend toggle flag
+let currentRenderLoop = null; // for restartable WebGL loop
 
 // Initialize app after user clicks start button
 startAppBtn.addEventListener('click', async () => {
@@ -26,8 +37,9 @@ startAppBtn.addEventListener('click', async () => {
   startAppBtn.disabled = true;
 
   try {
-    // Choose renderer type (WebGPU preferred, WebGL fallback)
-    rendererType = await chooseRenderer();
+    // Choose renderer type (WebGPU preferred, WebGL fallback),
+    // unless forced to WebGL-only via toggle flag.
+    rendererType = useWebGLOnly ? 'webgl' : await chooseRenderer();
     console.log(`[App] Using renderer: ${rendererType}`);
 
     // Initialize Three.js with chosen renderer
@@ -68,6 +80,8 @@ startAppBtn.addEventListener('click', async () => {
     document.body.classList.add('app-active');
     // Initialize ribbon
     await initializeRibbon();
+    // Add persistent reference cube
+    addPersistentTestCube();
     // Initialize drawing manager
     drawingManager = new DrawingManager(drawCanvas, handleDrawingComplete);
 
@@ -79,6 +93,26 @@ startAppBtn.addEventListener('click', async () => {
     startAppBtn.disabled = false;
   }
 });
+
+// Add a persistent cube at the origin so we can tell if
+// the 3D scene is being rendered, independent of the ribbon.
+function addPersistentTestCube() {
+  if (!scene) return;
+  if (testCube) {
+    scene.remove(testCube);
+    testCube.geometry?.dispose?.();
+    testCube.material?.dispose?.();
+    testCube = null;
+  }
+
+  const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+  const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+  testCube = new THREE.Mesh(geometry, material);
+  testCube.position.set(0, 0, 0);
+  scene.add(testCube);
+
+  console.log('[Main] Persistent test cube added');
+}
 
 // --- UI toggle for drawing mode ---
 function setDrawingMode(enableDrawing) {
@@ -110,6 +144,24 @@ function setDrawingMode(enableDrawing) {
 
 drawToggleBtn.addEventListener('click', () => setDrawingMode(true));
 viewToggleBtn.addEventListener('click', () => setDrawingMode(false));
+
+// Debug / test controls
+if (restartLoopBtn) {
+  restartLoopBtn.addEventListener('click', () => {
+    console.log('[UI] Restart Loop button clicked');
+    restartRenderLoop();
+  });
+}
+
+if (backendToggleBtn) {
+  backendToggleBtn.addEventListener('click', () => {
+    useWebGLOnly = !useWebGLOnly;
+    backendToggleBtn.textContent = useWebGLOnly ? 'Backend: WebGL-only' : 'Backend: Auto/WebGPU';
+    console.log('[UI] Backend toggle changed', { useWebGLOnly });
+    // Inform user that a reload is needed for backend change to take effect
+    alert('Backend set to ' + (useWebGLOnly ? 'WebGL-only' : 'Auto/WebGPU') + '. Reload the page to apply.');
+  });
+}
 
 // Truncate toggle button
 truncateToggleBtn.addEventListener('click', () => {
@@ -332,7 +384,7 @@ function startRenderLoop() {
 
   if (rendererType === 'webgpu') {
     // WebGPU uses setAnimationLoop
-    renderer.setAnimationLoop(() => {
+    const loopFn = () => {
       const time = performance.now() / 1000;
       // Advance KTX2 layer cycling (no-op for JPG mode)
       tileManager?.tick?.(performance.now());
@@ -352,7 +404,9 @@ function startRenderLoop() {
       //   });
       // }
       // frameCount++;
-    });
+    };
+    renderer.setAnimationLoop(loopFn);
+    currentRenderLoop = loopFn;
     console.log('[App] WebGPU animation loop started');
   } else {
     // WebGL uses requestAnimationFrame
@@ -378,9 +432,24 @@ function startRenderLoop() {
       // }
       // frameCount++;
     }
+    currentRenderLoop = renderLoop;
     renderLoop();
     console.log('[App] WebGL animation loop started');
   }
+}
+
+// Simple test hook to restart the animation loop manually.
+function restartRenderLoop() {
+  if (!renderer || !scene || !camera) return;
+
+  console.log('[Main] Restarting render loop');
+
+  if (rendererType === 'webgpu') {
+    renderer.setAnimationLoop(null);
+  }
+  // For WebGL, currentRenderLoop will simply be replaced on next startRenderLoop call.
+
+  startRenderLoop();
 }
 
 // Resource Cleanup
