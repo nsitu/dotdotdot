@@ -38,6 +38,9 @@ startAppBtn.addEventListener('click', async () => {
     resetCamera = threeContext.resetCamera;
     rendererType = threeContext.rendererType; // Actual renderer used (may differ if fallback occurred)
 
+    // Set initial state to view mode
+    setDrawingMode(false);
+
     console.log(`[App] Three.js initialized with ${rendererType}`);
 
     startAppBtn.textContent = 'Loading textures...';
@@ -120,8 +123,7 @@ truncateToggleBtn.addEventListener('click', () => {
   }
 });
 
-// Set initial state to view mode
-setDrawingMode(false);
+
 
 // --- Ribbon builder with animated undulation ---
 function updateAnimatedRibbon(time) {
@@ -155,12 +157,16 @@ async function initializeRibbon() {
 }
 
 function resizeCanvas() {
+
   if (drawingManager) {
     drawingManager.resize(window.innerWidth, window.innerHeight);
   }
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
+  if (renderer && camera) {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+  }
+
 }
 
 // Handle orientation changes with multiple approaches for better mobile support
@@ -240,6 +246,12 @@ function handleDrawingComplete(points) {
     // Use the ribbon module to create from drawing points
     const result = ribbon.createRibbonFromDrawing(points);
     console.log('[Main] Ribbon creation result:', result ? 'success' : 'undefined');
+
+    console.log('[Main] Post-create state', {
+      meshSegments: ribbon.meshSegments?.length || 0,
+      sceneChildren: scene.children?.length || 0,
+      cameraPos: camera.position
+    });
   } else {
     console.warn('[Main] Not enough points for ribbon creation');
   }
