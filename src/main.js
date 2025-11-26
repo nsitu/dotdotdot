@@ -28,7 +28,9 @@ let isDrawingMode = false;
 let ribbon = null;
 let drawingManager;
 let testCube = null;
-let useWebGLOnly = false; // quick backend toggle flag
+// Determine backend preference from URL (?backend=webgl|auto)
+const backendParam = new URL(window.location.href).searchParams.get('backend');
+let useWebGLOnly = backendParam === 'webgl'; // quick backend toggle flag
 let currentRenderLoop = null; // for restartable WebGL loop
 
 // Initialize app after user clicks start button
@@ -155,12 +157,22 @@ if (restartLoopBtn) {
 
 if (backendToggleBtn) {
   backendToggleBtn.addEventListener('click', () => {
+    // Toggle desired backend flag
     useWebGLOnly = !useWebGLOnly;
+    const mode = useWebGLOnly ? 'webgl' : 'auto';
     backendToggleBtn.textContent = useWebGLOnly ? 'Backend: WebGL-only' : 'Backend: Auto/WebGPU';
-    console.log('[UI] Backend toggle changed', { useWebGLOnly });
-    // Inform user that a reload is needed for backend change to take effect
-    alert('Backend set to ' + (useWebGLOnly ? 'WebGL-only' : 'Auto/WebGPU') + '. Reload the page to apply.');
+    console.log('[UI] Backend toggle changed', { useWebGLOnly, mode });
+
+    // Update URL with backend query param and reload via location
+    const url = new URL(window.location.href);
+    url.searchParams.set('backend', mode);
+    window.location.href = url.toString();
   });
+
+  // Initialize button label based on current URL setting
+  backendToggleBtn.textContent = useWebGLOnly
+    ? 'Backend: WebGL-only'
+    : 'Backend: Auto/WebGPU';
 }
 
 // Truncate toggle button
