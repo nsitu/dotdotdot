@@ -6,6 +6,7 @@ export const truncateToggleBtn = document.getElementById('truncateToggleBtn');
 export const startAppBtn = document.getElementById('startAppBtn');
 export const restartLoopBtn = document.getElementById('restartLoopBtn');
 export const backendToggleBtn = document.getElementById('backendToggleBtn');
+export const materialModeToggleBtn = document.getElementById('materialModeToggleBtn');
 // Canvas element
 export const drawCanvas = document.getElementById('drawCanvas');
 // Other elements

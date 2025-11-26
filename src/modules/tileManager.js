@@ -43,6 +43,10 @@ export class TileManager {
         this.lastFrameTime = 0;
         this.rotate90 = !!rotate90;
 
+        // WebGPU material mode: 'node' (NodeMaterial) or 'basic' (MeshBasicMaterial)
+        // Can be set externally (e.g., via URL param) before loading tiles.
+        this.webgpuMaterialMode = options.webgpuMaterialMode || 'node';
+
         this._ktx2Loader = null;
     }
 
@@ -165,6 +169,35 @@ export class TileManager {
     #createArrayMaterialWebGPU(arrayTexture) {
         const layerCount = arrayTexture.image?.depth || 1;
 
+        // Simple fallback path: use a non-array texture in a MeshBasicMaterial
+        // for debugging, instead of the KTX2 array texture.
+        if (this.webgpuMaterialMode === 'basic') {
+            const debugTex = new THREE.CanvasTexture(Object.assign(
+                document.createElement('canvas'),
+                {
+                    width: 2,
+                    height: 2
+                }
+            ));
+            const ctx = debugTex.image.getContext('2d');
+            ctx.fillStyle = '#ff00ff';
+            ctx.fillRect(0, 0, 2, 2);
+            debugTex.needsUpdate = true;
+
+            const basicMat = new THREE.MeshBasicMaterial({
+                map: debugTex,
+                side: THREE.DoubleSide
+            });
+
+            console.log('[TileManager] WebGPU BASIC debug material created (non-array texture)', {
+                layerCount,
+                textureDepth: arrayTexture.image?.depth,
+                textureFormat: arrayTexture.format
+            });
+
+            return basicMat;
+        }
+
         // Create uniforms for layer and rotation
         const layerUniform = uniform(this.sharedLayerUniform.value);
         const rotateUniform = uniform(this.sharedRotateUniform.value);
@@ -205,6 +238,20 @@ export class TileManager {
         });
 
         return material;
+    }
+
+    /**
+     * Toggle WebGPU material mode between 'node' (NodeMaterial) and 'basic' (MeshBasicMaterial).
+     * This only affects newly created materials; existing meshes keep their current material.
+     */
+    setWebGPUMaterialMode(mode) {
+        if (mode !== 'node' && mode !== 'basic') return;
+        if (this.rendererType !== 'webgpu') return;
+
+        if (this.webgpuMaterialMode !== mode) {
+            console.log('[TileManager] Switching WebGPU material mode to', mode);
+        }
+        this.webgpuMaterialMode = mode;
     }
 
     async #loadKTX2Tile(index) {

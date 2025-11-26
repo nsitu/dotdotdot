@@ -9,6 +9,7 @@ import {
   startAppBtn,
   restartLoopBtn,
   backendToggleBtn,
+  materialModeToggleBtn,
   fileInput,
   checkerboardDiv,
   welcomeScreen,
@@ -29,7 +30,9 @@ let ribbon = null;
 let drawingManager;
 let testCube = null;
 // Determine backend preference from URL (?backend=webgl|auto)
-const backendParam = new URL(window.location.href).searchParams.get('backend');
+const urlParams = new URL(window.location.href).searchParams;
+const backendParam = urlParams.get('backend');
+const materialParam = urlParams.get('material'); // 'node' | 'basic'
 let useWebGLOnly = backendParam === 'webgl'; // quick backend toggle flag
 let currentRenderLoop = null; // for restartable WebGL loop
 
@@ -72,7 +75,8 @@ startAppBtn.addEventListener('click', async () => {
       source: 'ktx2-planes',
       renderer,
       rendererType,
-      rotate90: true
+      rotate90: true,
+      webgpuMaterialMode: materialParam === 'basic' ? 'basic' : 'node'
     });
     await tileManager.loadAllTiles();
 
@@ -173,6 +177,25 @@ if (backendToggleBtn) {
   backendToggleBtn.textContent = useWebGLOnly
     ? 'Backend: WebGL-only'
     : 'Backend: Auto/WebGPU';
+}
+
+if (materialModeToggleBtn) {
+  materialModeToggleBtn.addEventListener('click', () => {
+    if (rendererType !== 'webgpu') return;
+
+    const current = materialParam === 'basic' ? 'basic' : 'node';
+    const newMode = current === 'node' ? 'basic' : 'node';
+    console.log('[UI] Material mode toggle requested', { newMode });
+
+    // Update URL with material query param and reload via location
+    const url = new URL(window.location.href);
+    url.searchParams.set('material', newMode);
+    window.location.href = url.toString();
+  });
+
+  // Initialize label
+  const initialMode = materialParam === 'basic' ? 'basic' : 'node';
+  materialModeToggleBtn.textContent = initialMode === 'node' ? 'Material: Node' : 'Material: Basic';
 }
 
 // Truncate toggle button
