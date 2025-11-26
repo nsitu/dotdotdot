@@ -341,6 +341,82 @@ function handleDrawingComplete(points) {
       cameraPos: camera.position
     });
 
+    // Automatic diagnostics: log geometry/material stats for current ribbon segments
+    if (ribbon && Array.isArray(ribbon.meshSegments)) {
+      const segmentSummaries = ribbon.meshSegments.map((mesh, index) => {
+        if (!mesh) return { index, missing: true };
+
+        const geom = mesh.geometry;
+        const mat = mesh.material;
+
+        let positionCount = 0;
+        let indexCount = 0;
+        let boundingBox = null;
+        let boundingSphere = null;
+
+        if (geom) {
+          const posAttr = geom.getAttribute('position');
+          positionCount = posAttr ? posAttr.count : 0;
+          indexCount = geom.index ? geom.index.count : 0;
+
+          try {
+            geom.computeBoundingBox();
+            geom.computeBoundingSphere();
+            boundingBox = geom.boundingBox;
+            boundingSphere = geom.boundingSphere;
+          } catch (e) {
+            console.warn('[Diagnostics] Error computing bounds for segment', index, e);
+          }
+        }
+
+        let materialInfo = null;
+        if (mat) {
+          materialInfo = {
+            type: mat.type,
+            transparent: !!mat.transparent,
+            opacity: mat.opacity,
+            depthTest: mat.depthTest,
+            depthWrite: mat.depthWrite,
+            side: mat.side,
+            wireframe: !!mat.wireframe,
+            map: mat.map
+              ? {
+                isTexture: !!mat.map.isTexture,
+                isRenderTargetTexture: !!mat.map.isRenderTargetTexture,
+                name: mat.map.name || null,
+                image: mat.map.image
+                  ? {
+                    width: mat.map.image.width,
+                    height: mat.map.image.height
+                  }
+                  : null
+              }
+              : null
+          };
+        }
+
+        return {
+          index,
+          positionCount,
+          indexCount,
+          boundingBox,
+          boundingSphere,
+          materialInfo
+        };
+      });
+
+      console.log('[Diagnostics] Ribbon diagnostics after drawing', {
+        rendererType,
+        segmentCount: ribbon.meshSegments.length,
+        segmentSummaries,
+        camera: {
+          position: camera ? camera.position.clone() : null,
+          rotation: camera ? camera.rotation.clone() : null
+        },
+        sceneChildren: scene.children ? scene.children.length : 0
+      });
+    }
+
     // Canvas / renderer visibility + size diagnostics
     if (renderer && renderer.domElement) {
       let rendererSize;
