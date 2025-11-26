@@ -127,6 +127,18 @@
   <div id="checkerboard"></div>
 
   <canvas id="drawCanvas"></canvas>
+
+  <!-- Debug / test controls -->
+  <div id="debugControls">
+    <button
+      id="restartLoopBtn"
+      title="Restart render loop"
+    >Restart Loop</button>
+    <button
+      id="backendToggleBtn"
+      title="Toggle WebGL-only backend"
+    >Backend: Auto/WebGPU</button>
+  </div>
   <script
     type="module"
     src="/src/main.js"
