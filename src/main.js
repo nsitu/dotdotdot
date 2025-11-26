@@ -314,6 +314,15 @@ function handleDrawingComplete(points) {
     });
   }
 
+  if (renderer && scene && camera) {
+    try {
+      console.log('[Main] Forcing immediate render after drawing complete');
+      renderer.render(scene, camera);
+    } catch (e) {
+      console.error('[Main] Error during forced render:', e);
+    }
+  }
+
 }
 
 // --- Render Loop with animated ribbon ---
