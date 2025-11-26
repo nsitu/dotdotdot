@@ -212,7 +212,8 @@ body.app-active #importSvgBtn {
   position: absolute;
   z-index: 2;
   left: 10px;
-  top: 70px; /* slightly below #modeToggleButtons (which are at top:10px, height:54px) */
+  top: 70px;
+  /* slightly below #modeToggleButtons (which are at top:10px, height:54px) */
   display: flex;
   flex-direction: column;
   gap: 6px;
