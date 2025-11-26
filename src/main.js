@@ -11,6 +11,7 @@ import { loadSvgPath, parseSvgContent, normalizePoints } from './modules/svgPath
 import { Ribbon } from './modules/ribbon.js';
 import { DrawingManager } from './modules/drawing.js';
 import { TileManager } from './modules/tileManager.js';
+import * as THREE from 'three';
 
 let scene, camera, renderer, controls, resetCamera, rendererType;
 
@@ -252,6 +253,42 @@ function handleDrawingComplete(points) {
       sceneChildren: scene.children?.length || 0,
       cameraPos: camera.position
     });
+
+    // Canvas / renderer visibility + size diagnostics
+    if (renderer && renderer.domElement) {
+      let rendererSize;
+      try {
+        rendererSize = renderer.getSize(new THREE.Vector2());
+      } catch (e) {
+        rendererSize = { x: renderer.domElement.width, y: renderer.domElement.height };
+      }
+
+      const dom = renderer.domElement;
+      const domStyle = getComputedStyle(dom);
+
+      console.log('[Main] Canvas visibility check', {
+        rendererSize,
+        domSize: {
+          width: dom.width,
+          height: dom.height,
+          clientWidth: dom.clientWidth,
+          clientHeight: dom.clientHeight
+        },
+        domStyle: {
+          display: domStyle.display,
+          opacity: domStyle.opacity,
+          visibility: domStyle.visibility,
+          position: domStyle.position
+        },
+        checkerboardDisplay: checkerboardDiv ? getComputedStyle(checkerboardDiv).display : 'n/a',
+        viewport: {
+          innerWidth: window.innerWidth,
+          innerHeight: window.innerHeight,
+          visualWidth: window.visualViewport ? window.visualViewport.width : null,
+          visualHeight: window.visualViewport ? window.visualViewport.height : null
+        }
+      });
+    }
   } else {
     console.warn('[Main] Not enough points for ribbon creation');
   }
