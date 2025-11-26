@@ -129,7 +129,7 @@ truncateToggleBtn.addEventListener('click', () => {
 // --- Ribbon builder with animated undulation ---
 function updateAnimatedRibbon(time) {
   if (ribbon) {
-    ribbon.update(time);
+    // ribbon.update(time);
   }
 }
 
