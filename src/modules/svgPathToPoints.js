@@ -86,6 +86,73 @@ export function parseSvgContent(svgContent, numPoints = 100, scale = 1, z = 0) {
 }
 
 /**
+ * Parses SVG content and extracts points from ALL paths
+ * @param {string} svgContent - SVG content as string
+ * @param {number} numPoints - Number of points to sample per path
+ * @param {number} scale - Scale factor for the points
+ * @param {number} z - Z position for all points
+ * @returns {Array<Array<THREE.Vector3>>} Array of point arrays (one per path), or empty array if parsing fails
+ */
+export function parseSvgContentMultiPath(svgContent, numPoints = 100, scale = 1, z = 0) {
+    try {
+        // Parse SVG content
+        const parser = new DOMParser();
+        const svgDoc = parser.parseFromString(svgContent, "image/svg+xml");
+
+        // Check for parsing errors
+        const parserError = svgDoc.querySelector("parsererror");
+        if (parserError) {
+            console.error("SVG parsing error:", parserError);
+            return [];
+        }
+
+        // Get ALL path elements
+        const paths = svgDoc.querySelectorAll("path");
+        if (!paths || paths.length === 0) {
+            console.error("No paths found in SVG");
+            return [];
+        }
+
+        // Calculate appropriate scale based on viewBox if present
+        let adjustedScale = scale;
+        const svgElement = svgDoc.querySelector("svg");
+        const viewBox = svgElement?.getAttribute("viewBox");
+
+        if (viewBox) {
+            const [, , width, height] = viewBox.split(" ").map(Number);
+            // Use the largest dimension to normalize
+            const maxDimension = Math.max(width, height);
+            if (maxDimension > 0) {
+                adjustedScale = scale / maxDimension;
+            }
+        }
+
+        // Convert each path to points
+        const pathsPoints = [];
+        paths.forEach((path, index) => {
+            const pathData = path.getAttribute("d");
+            if (!pathData) {
+                console.warn(`Path ${index} has no data attribute, skipping`);
+                return;
+            }
+
+            const points = svgPathToPoints(pathData, numPoints, adjustedScale, z);
+            if (points && points.length >= 2) {
+                pathsPoints.push(points);
+            } else {
+                console.warn(`Path ${index} produced insufficient points, skipping`);
+            }
+        });
+
+        console.log(`[SVG] Extracted ${pathsPoints.length} paths from SVG`);
+        return pathsPoints;
+    } catch (error) {
+        console.error("Error parsing SVG content:", error);
+        return [];
+    }
+}
+
+/**
  * Loads an SVG file and returns points from the first path
  * @param {string} url - URL to SVG file
  * @param {number} numPoints - Number of points to sample
@@ -128,4 +195,37 @@ export function normalizePoints(points, targetSize = 8) {
         (p.y - center.y) * scaleFactor,
         p.z
     ));
+}
+
+/**
+ * Normalizes multiple point arrays to fit within a target size together
+ * All paths share the same coordinate space (combined bounding box)
+ * @param {Array<Array<THREE.Vector3>>} pathsPoints - Array of point arrays
+ * @param {number} targetSize - The desired maximum dimension size
+ * @returns {Array<Array<THREE.Vector3>>} Normalized paths
+ */
+export function normalizePointsMultiPath(pathsPoints, targetSize = 8) {
+    if (!pathsPoints || pathsPoints.length === 0) return [];
+
+    // Flatten all points to calculate combined bounding box
+    const allPoints = pathsPoints.flat();
+    if (allPoints.length < 2) return pathsPoints;
+
+    // Calculate combined bounding box across ALL paths
+    const box = new THREE.Box3().setFromPoints(allPoints);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+
+    // Calculate scale factor to fit within target size
+    const maxDimension = Math.max(size.x, size.y);
+    const scaleFactor = maxDimension > 0 ? targetSize / maxDimension : 1;
+
+    // Apply same transform to ALL paths
+    return pathsPoints.map(points =>
+        points.map(p => new THREE.Vector3(
+            (p.x - center.x) * scaleFactor,
+            (p.y - center.y) * scaleFactor,
+            p.z
+        ))
+    );
 }

@@ -13,14 +13,17 @@ import {
   replayPrevBtn,
   replayNextBtn,
   clearDrawingsBtn,
+  finishDrawingBtn,
+  countdownSecondsSpan,
   fileInput,
   checkerboardDiv,
   welcomeScreen,
   drawCanvas,
   rendererIndicator
 } from './modules/domElements.js';
-import { loadSvgPath, parseSvgContent, normalizePoints } from './modules/svgPathToPoints.js';
+import { loadSvgPath, parseSvgContent, normalizePoints, parseSvgContentMultiPath, normalizePointsMultiPath } from './modules/svgPathToPoints.js';
 import { Ribbon } from './modules/ribbon.js';
+import { RibbonSeries } from './modules/ribbonSeries.js';
 import { DrawingManager } from './modules/drawing.js';
 import { TileManager } from './modules/tileManager.js';
 import * as THREE from 'three';
@@ -30,6 +33,7 @@ let scene, camera, renderer, controls, resetCamera, rendererType;
 let tileManager;
 let isDrawingMode = false;
 let ribbon = null;
+let ribbonSeries = null; // For multi-path SVG support
 let drawingManager;
 let currentRenderLoop = null; // for restartable WebGL loop
 
@@ -99,8 +103,14 @@ startAppBtn.addEventListener('click', async () => {
     document.body.classList.add('app-active');
     // Initialize ribbon
     await initializeRibbon();
-    // Initialize drawing manager
-    drawingManager = new DrawingManager(drawCanvas, handleDrawingComplete);
+    // Initialize drawing manager with multi-stroke callbacks
+    drawingManager = new DrawingManager(
+      drawCanvas,
+      handleDrawingComplete,
+      handleStrokeCountChange
+    );
+    // Set up auto-finalize countdown callback
+    drawingManager.onAutoFinalizeCountdown = handleAutoFinalizeCountdown;
 
     // Start render loop
     startRenderLoop();
@@ -132,6 +142,17 @@ function setDrawingMode(enableDrawing) {
   drawToggleBtn.classList.toggle('active-mode', enableDrawing);
   viewToggleBtn.classList.toggle('active-mode', !enableDrawing);
 
+  // Show/hide finish drawing button
+  if (finishDrawingBtn) {
+    finishDrawingBtn.classList.toggle('visible', enableDrawing);
+    finishDrawingBtn.disabled = enableDrawing ? (drawingManager?.getStrokeCount() === 0) : true;
+    // Clear countdown when exiting drawing mode
+    if (!enableDrawing) {
+      finishDrawingBtn.classList.remove('counting');
+      if (countdownSecondsSpan) countdownSecondsSpan.textContent = '';
+    }
+  }
+
   // console.log('[Main] Drawing mode updated', {
   //   isDrawingMode,
   //   canvasPointerEvents: drawCanvas.style.pointerEvents,
@@ -141,6 +162,37 @@ function setDrawingMode(enableDrawing) {
 
 drawToggleBtn.addEventListener('click', () => setDrawingMode(true));
 viewToggleBtn.addEventListener('click', () => setDrawingMode(false));
+
+// --- Multi-stroke drawing UI ---
+// Handle stroke count changes from DrawingManager
+function handleStrokeCountChange(count) {
+  console.log('[Main] Stroke count changed:', count);
+  if (finishDrawingBtn) {
+    finishDrawingBtn.disabled = count === 0;
+  }
+}
+
+// Handle auto-finalize countdown updates
+function handleAutoFinalizeCountdown(seconds, active) {
+  if (finishDrawingBtn && countdownSecondsSpan) {
+    finishDrawingBtn.classList.toggle('counting', active);
+    countdownSecondsSpan.textContent = active ? seconds : '';
+  }
+}
+
+// Finish drawing button handler
+if (finishDrawingBtn) {
+  finishDrawingBtn.addEventListener('click', () => {
+    if (!drawingManager) return;
+
+    const strokes = drawingManager.finalizeDrawing();
+    if (strokes && strokes.length > 0) {
+      handleDrawingComplete(strokes);
+    } else {
+      console.warn('[Main] No strokes to finalize');
+    }
+  });
+}
 
 // --- Replay Drawing Button (Experiment 1) ---
 // Helper to update button labels with current position
@@ -332,22 +384,31 @@ function updateAnimatedRibbon(time) {
 
 async function initializeRibbon() {
   try {
-    // Create the ribbon instance
+    // Create the ribbon instance (for drawing - single path)
     ribbon = new Ribbon(scene);
-    // Set the tile manager instead of texture
     ribbon.setTileManager(tileManager);
+
+    // Create the ribbon series instance (for SVG - multi-path)
+    ribbonSeries = new RibbonSeries(scene);
+    ribbonSeries.setTileManager(tileManager);
+
     // Set initial button state
     truncateToggleBtn.classList.toggle('active', ribbon.truncateSegments);
-    // Try to load the SVG path
-    const svgPoints = await loadSvgPath('./R.svg', 80, 5, 0);
-    if (svgPoints && svgPoints.length >= 2) {
-      // Use the normalizePoints function to scale and center
-      const normalizedPoints = normalizePoints(svgPoints);
-      // Reset camera before building the initial ribbon
+
+    // Try to load the SVG path (use multi-path for SVG files)
+    const response = await fetch('./R.svg');
+    const svgText = await response.text();
+    const pathsPoints = parseSvgContentMultiPath(svgText, 80, 5, 0);
+
+    if (pathsPoints && pathsPoints.length > 0) {
+      // Use multi-path normalization to keep paths in shared coordinate space
+      const normalizedPaths = normalizePointsMultiPath(pathsPoints);
+      // Reset camera before building the initial ribbon series
       resetCamera();
-      ribbon.buildFromPoints(normalizedPoints, 1.2);
+      ribbonSeries.buildFromMultiplePaths(normalizedPaths, 1.2);
+      console.log(`[App] Loaded SVG with ${pathsPoints.length} path(s), ${ribbonSeries.getTotalSegmentCount()} total segments`);
     } else {
-      console.error("Could not extract points from the SVG file.");
+      console.error("Could not extract paths from the SVG file.");
     }
   } catch (error) {
     console.error("Error initializing ribbon from SVG:", error);
@@ -428,11 +489,19 @@ if (window.visualViewport) {
 resizeCanvas();
 
 // --- Drawing callback ---
-function handleDrawingComplete(points) {
-  // Points are already integers (converted at capture time in DrawingManager)
+function handleDrawingComplete(strokesData) {
+  // strokesData is now Array<Array<{x,y}>> for multi-stroke
+  // Determine if this is multi-stroke data
+  const isMultiStroke = Array.isArray(strokesData) && strokesData.length > 0 && Array.isArray(strokesData[0]);
+
   console.log('[Main] handleDrawingComplete called', {
-    pointCount: points.length,
+    isMultiStroke,
+    strokeCount: isMultiStroke ? strokesData.length : 1,
+    totalPoints: isMultiStroke
+      ? strokesData.reduce((sum, s) => sum + s.length, 0)
+      : strokesData.length,
     ribbonExists: !!ribbon,
+    ribbonSeriesExists: !!ribbonSeries,
     sceneExists: !!scene
   });
 
@@ -441,192 +510,109 @@ function handleDrawingComplete(points) {
   const capturedEntry = {
     id: drawingId,
     timestamp: new Date().toISOString(),
-    points: points, // Already integers from DrawingManager
+    strokes: isMultiStroke ? strokesData : [strokesData], // Always store as array of strokes
     rendererType: rendererType,
     viewport: { width: window.innerWidth, height: window.innerHeight },
     success: null // Will be updated after ribbon creation attempt
   };
   console.log(`[PointCapture] Drawing #${drawingId} captured`, {
-    pointCount: points.length,
-    firstPoint: points[0],
-    lastPoint: points[points.length - 1]
+    strokeCount: capturedEntry.strokes.length,
+    totalPoints: capturedEntry.strokes.reduce((sum, s) => sum + s.length, 0)
   });
-  // Log as copyable JSON for manual replay
-  console.log(`[PointCapture] Drawing #${drawingId} JSON:`, JSON.stringify(points));
 
-  if (points.length >= 2) {
-    console.log('[Main] Resetting camera before ribbon creation');
-    // Reset camera before building the new ribbon
-    resetCamera();
+  // Reset camera before building the new ribbon(s)
+  console.log('[Main] Resetting camera before ribbon creation');
+  resetCamera();
 
-    console.log('[Main] Creating ribbon from drawing points...');
-    // Use the ribbon module to create from drawing points
-    const result = ribbon.createRibbonFromDrawing(points);
-    console.log('[Main] Ribbon creation result:', result ? 'success' : 'undefined');
+  let creationSuccess = false;
+  let totalSegments = 0;
 
-    console.log('[Main] Post-create state', {
-      meshSegments: ribbon.meshSegments?.length || 0,
-      sceneChildren: scene.children?.length || 0,
-      cameraPos: camera.position
-    });
+  if (isMultiStroke && strokesData.length > 1) {
+    // Multi-stroke: use RibbonSeries
+    console.log('[Main] Creating ribbon series from', strokesData.length, 'strokes');
 
-    // --- Update capture entry with success status ---
-    capturedEntry.success = ribbon.meshSegments?.length > 0;
-    capturedEntry.segmentCount = ribbon.meshSegments?.length || 0;
-    capturedDrawings.push(capturedEntry);
-    // Keep only last 20 drawings to avoid localStorage bloat
-    if (capturedDrawings.length > 20) {
-      capturedDrawings = capturedDrawings.slice(-20);
-    }
-    // Persist to localStorage
-    try {
-      localStorage.setItem(CAPTURED_DRAWINGS_KEY, JSON.stringify(capturedDrawings));
-      console.log(`[PointCapture] Drawing #${drawingId} saved (success=${capturedEntry.success})`);
-    } catch (e) {
-      console.warn('[PointCapture] Failed to save to localStorage:', e);
-    }
-    // Reset history index to point to newest and update UI
-    historyIndex = capturedDrawings.length - 1;
-    updateHistoryUI();
+    // Clean up existing ribbons
+    if (ribbon) ribbon.dispose();
+    if (ribbonSeries) ribbonSeries.cleanup();
 
-    const showDiagnostics = true; // Set to true to enable detailed logging
-    // Automatic diagnostics: log geometry/material stats for current ribbon segments
-    if (showDiagnostics && ribbon && Array.isArray(ribbon.meshSegments)) {
-      const segmentSummaries = ribbon.meshSegments.map((mesh, index) => {
-        if (!mesh) return { index, missing: true };
+    // Step 1: Convert all strokes to raw 3D points (NO per-stroke normalization)
+    // This preserves the relative spatial arrangement between strokes
+    const rawPathsPoints = strokesData.map(stroke =>
+      stroke.map(p => new THREE.Vector3(
+        p.x,
+        -p.y,  // Flip Y to match THREE.js coordinates (screen Y is down, 3D Y is up)
+        0
+      ))
+    ).filter(points => points.length >= 2);
 
-        const geom = mesh.geometry;
-        const mat = mesh.material;
+    if (rawPathsPoints.length > 0) {
+      // Step 2: Normalize all paths TOGETHER using combined bounding box
+      // This preserves relative positions between strokes
+      const normalizedPaths = normalizePointsMultiPath(rawPathsPoints);
 
-        let positionCount = 0;
-        let indexCount = 0;
-        let boundingBox = null;
-        let boundingSphere = null;
+      // Step 3: Sanitize and smooth each normalized path
+      const processedPaths = normalizedPaths.map(points => {
+        const sanitized = ribbon.sanitizePoints(points);
+        return ribbon.smoothPoints(sanitized, 150);
+      }).filter(points => points.length >= 2);
 
-        if (geom) {
-          const posAttr = geom.getAttribute('position');
-          positionCount = posAttr ? posAttr.count : 0;
-          indexCount = geom.index ? geom.index.count : 0;
+      if (processedPaths.length > 0) {
+        // Step 4: Build ribbon series
+        ribbonSeries.buildFromMultiplePaths(processedPaths, 1.2);
+        totalSegments = ribbonSeries.getTotalSegmentCount();
+        creationSuccess = totalSegments > 0;
 
-          try {
-            geom.computeBoundingBox();
-            geom.computeBoundingSphere();
-            boundingBox = geom.boundingBox;
-            boundingSphere = geom.boundingSphere;
-          } catch (e) {
-            console.warn('[Diagnostics] Error computing bounds for segment', index, e);
-          }
-        }
-
-        let materialInfo = null;
-        if (mat) {
-          materialInfo = {
-            type: mat.type,
-            transparent: !!mat.transparent,
-            opacity: mat.opacity,
-            depthTest: mat.depthTest,
-            depthWrite: mat.depthWrite,
-            side: mat.side,
-            wireframe: !!mat.wireframe,
-            map: mat.map
-              ? {
-                isTexture: !!mat.map.isTexture,
-                isRenderTargetTexture: !!mat.map.isRenderTargetTexture,
-                name: mat.map.name || null,
-                image: mat.map.image
-                  ? {
-                    width: mat.map.image.width,
-                    height: mat.map.image.height
-                  }
-                  : null
-              }
-              : null
-          };
-        }
-
-        return {
-          index,
-          positionCount,
-          indexCount,
-          boundingBox,
-          boundingSphere,
-          materialInfo
-        };
-      });
-
-      console.log('[Diagnostics] Ribbon diagnostics after drawing', {
-        rendererType,
-        segmentCount: ribbon.meshSegments.length,
-        segmentSummaries,
-        rawSegments: ribbon.meshSegments,
-        camera: {
-          position: camera ? camera.position.clone() : null,
-          rotation: camera ? camera.rotation.clone() : null
-        },
-        sceneChildren: scene.children ? scene.children.length : 0
-      });
-    }
-
-    // Canvas / renderer visibility + size diagnostics
-    if (renderer && renderer.domElement) {
-      let rendererSize;
-      try {
-        rendererSize = renderer.getSize(new THREE.Vector2());
-      } catch (e) {
-        rendererSize = { x: renderer.domElement.width, y: renderer.domElement.height };
+        console.log('[Main] RibbonSeries creation result:', creationSuccess ? 'success' : 'failed', {
+          pathCount: processedPaths.length,
+          totalSegments
+        });
       }
-
-      const dom = renderer.domElement;
-      const domStyle = getComputedStyle(dom);
-
-      console.log('[Main] Canvas visibility check', {
-        rendererSize,
-        domSize: {
-          width: dom.width,
-          height: dom.height,
-          clientWidth: dom.clientWidth,
-          clientHeight: dom.clientHeight
-        },
-        domStyle: {
-          display: domStyle.display,
-          opacity: domStyle.opacity,
-          visibility: domStyle.visibility,
-          position: domStyle.position
-        },
-        checkerboardDisplay: checkerboardDiv ? getComputedStyle(checkerboardDiv).display : 'n/a',
-        viewport: {
-          innerWidth: window.innerWidth,
-          innerHeight: window.innerHeight,
-          visualWidth: window.visualViewport ? window.visualViewport.width : null,
-          visualHeight: window.visualViewport ? window.visualViewport.height : null
-        }
-      });
     }
   } else {
-    console.warn('[Main] Not enough points for ribbon creation');
-  }
+    // Single stroke: use existing Ribbon logic
+    const singleStroke = isMultiStroke ? strokesData[0] : strokesData;
 
-  // Automatically exit drawing mode (always attempt after a completed drawing)
-  console.log('[Main] Exiting drawing mode (forcing false)');
-  setDrawingMode(false);
+    console.log('[Main] Creating single ribbon from', singleStroke.length, 'points');
 
-  // Log post-exit visibility state
-  if (renderer && renderer.domElement) {
-    const dom = renderer.domElement;
-    const domStyle = getComputedStyle(dom);
-    console.log('[Main] Post-exit drawing mode state', {
-      isDrawingMode,
-      domStyle: {
-        display: domStyle.display,
-        opacity: domStyle.opacity,
-        visibility: domStyle.visibility
-      },
-      checkerboardDisplay: checkerboardDiv
-        ? getComputedStyle(checkerboardDiv).display
-        : 'n/a'
+    // Clean up existing ribbon series
+    if (ribbonSeries) ribbonSeries.cleanup();
+
+    const result = ribbon.createRibbonFromDrawing(singleStroke);
+    totalSegments = ribbon.meshSegments?.length || 0;
+    creationSuccess = totalSegments > 0;
+
+    console.log('[Main] Ribbon creation result:', creationSuccess ? 'success' : 'failed', {
+      segmentCount: totalSegments
     });
   }
 
+  // --- Update capture entry with success status ---
+  capturedEntry.success = creationSuccess;
+  capturedEntry.segmentCount = totalSegments;
+  capturedDrawings.push(capturedEntry);
+
+  // Keep only last 20 drawings to avoid localStorage bloat
+  if (capturedDrawings.length > 20) {
+    capturedDrawings = capturedDrawings.slice(-20);
+  }
+
+  // Persist to localStorage
+  try {
+    localStorage.setItem(CAPTURED_DRAWINGS_KEY, JSON.stringify(capturedDrawings));
+    console.log(`[PointCapture] Drawing #${drawingId} saved (success=${capturedEntry.success})`);
+  } catch (e) {
+    console.warn('[PointCapture] Failed to save to localStorage:', e);
+  }
+
+  // Reset history index to point to newest and update UI
+  historyIndex = capturedDrawings.length - 1;
+  updateHistoryUI();
+
+  // Automatically exit drawing mode
+  console.log('[Main] Exiting drawing mode');
+  setDrawingMode(false);
+
+  // Force immediate render
   if (renderer && scene && camera) {
     try {
       console.log('[Main] Forcing immediate render after drawing complete');
@@ -635,7 +621,6 @@ function handleDrawingComplete(points) {
       console.error('[Main] Error during forced render:', e);
     }
   }
-
 }
 
 // --- Render Loop with animated ribbon ---
@@ -735,15 +720,24 @@ if (importSvgBtn && fileInput) {
         // Read the SVG file content
         const svgText = await file.text();
 
-        // Use our shared parsing function
-        const svgPoints = parseSvgContent(svgText, 80, 5, 0);
+        // Use multi-path parsing to extract all paths
+        const pathsPoints = parseSvgContentMultiPath(svgText, 80, 5, 0);
 
-        if (svgPoints && svgPoints.length >= 2) {
-          const normalizedPoints = normalizePoints(svgPoints);
+        if (pathsPoints && pathsPoints.length > 0) {
+          // Use multi-path normalization to keep paths in shared coordinate space
+          const normalizedPaths = normalizePointsMultiPath(pathsPoints);
           resetCamera();
-          ribbon.buildFromPoints(normalizedPoints, 1.2);
+
+          // Clean up single ribbon if it was used
+          if (ribbon) {
+            ribbon.dispose();
+          }
+
+          // Build ribbon series from all paths
+          ribbonSeries.buildFromMultiplePaths(normalizedPaths, 1.2);
+          console.log(`[App] Imported SVG with ${pathsPoints.length} path(s), ${ribbonSeries.getTotalSegmentCount()} total segments`);
         } else {
-          alert('Could not extract points from the SVG file.');
+          alert('Could not extract paths from the SVG file.');
         }
       } catch (error) {
         console.error('Error processing SVG file:', error);

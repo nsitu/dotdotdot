@@ -277,3 +277,61 @@ body.app-active #importSvgBtn {
     margin-top: 0.5rem;
   }
 }
+
+/* Finish Drawing button with countdown */
+#finishDrawingBtn {
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #4CAF50;
+  color: white;
+  font-weight: 600;
+  display: none;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  padding: 0.6em 1em;
+  transition: all 0.3s ease;
+}
+
+#finishDrawingBtn:hover {
+  background: #45a049;
+}
+
+#finishDrawingBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #666;
+}
+
+#finishDrawingBtn.visible {
+  display: flex;
+}
+
+#finishDrawingBtn .finish-icon {
+  width: 22px;
+  height: 22px;
+}
+
+#countdownSeconds {
+  font-size: 1.1em;
+  font-weight: bold;
+  min-width: 1em;
+  text-align: center;
+}
+
+/* Countdown animation */
+#finishDrawingBtn.counting {
+  animation: pulse-btn 1s ease-in-out infinite;
+}
+
+@keyframes pulse-btn {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(76, 175, 80, 0);
+  }
+}
