@@ -4,15 +4,11 @@ export const drawToggleBtn = document.getElementById('drawToggleBtn');
 export const viewToggleBtn = document.getElementById('viewToggleBtn');
 export const truncateToggleBtn = document.getElementById('truncateToggleBtn');
 export const startAppBtn = document.getElementById('startAppBtn');
-export const restartLoopBtn = document.getElementById('restartLoopBtn');
 export const backendToggleBtn = document.getElementById('backendToggleBtn');
 export const materialModeToggleBtn = document.getElementById('materialModeToggleBtn');
 export const replayDrawingBtn = document.getElementById('replayDrawingBtn');
 export const replayPrevBtn = document.getElementById('replayPrevBtn');
 export const replayNextBtn = document.getElementById('replayNextBtn');
-export const logSuccessBtn = document.getElementById('logSuccessBtn');
-export const logFailBtn = document.getElementById('logFailBtn');
-export const exportDrawingsBtn = document.getElementById('exportDrawingsBtn');
 export const clearDrawingsBtn = document.getElementById('clearDrawingsBtn');
 // Canvas element
 export const drawCanvas = document.getElementById('drawCanvas');

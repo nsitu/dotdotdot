@@ -7,15 +7,11 @@ import {
   viewToggleBtn,
   truncateToggleBtn,
   startAppBtn,
-  restartLoopBtn,
   backendToggleBtn,
   materialModeToggleBtn,
   replayDrawingBtn,
   replayPrevBtn,
   replayNextBtn,
-  logSuccessBtn,
-  logFailBtn,
-  exportDrawingsBtn,
   clearDrawingsBtn,
   fileInput,
   checkerboardDiv,
@@ -35,12 +31,6 @@ let tileManager;
 let isDrawingMode = false;
 let ribbon = null;
 let drawingManager;
-let testCube = null;
-// Determine backend preference from URL (?backend=webgl|auto)
-const urlParams = new URL(window.location.href).searchParams;
-const backendParam = urlParams.get('backend');
-const materialParam = urlParams.get('material'); // 'node' | 'basic'
-let useWebGLOnly = backendParam === 'webgl'; // quick backend toggle flag
 let currentRenderLoop = null; // for restartable WebGL loop
 
 // --- Point Capture/Replay for Debugging (Experiment 1) ---
@@ -66,9 +56,8 @@ startAppBtn.addEventListener('click', async () => {
   startAppBtn.disabled = true;
 
   try {
-    // Choose renderer type (WebGPU preferred, WebGL fallback),
-    // unless forced to WebGL-only via toggle flag.
-    rendererType = useWebGLOnly ? 'webgl' : await chooseRenderer();
+    // Choose renderer type (WebGPU preferred, WebGL fallback)
+    rendererType = await chooseRenderer();
     console.log(`[App] Using renderer: ${rendererType}`);
 
     // Initialize Three.js with chosen renderer
@@ -100,7 +89,7 @@ startAppBtn.addEventListener('click', async () => {
       renderer,
       rendererType,
       rotate90: true,
-      webgpuMaterialMode: materialParam === 'basic' ? 'basic' : 'node'
+      webgpuMaterialMode: 'node'
     });
     await tileManager.loadAllTiles();
 
@@ -110,8 +99,6 @@ startAppBtn.addEventListener('click', async () => {
     document.body.classList.add('app-active');
     // Initialize ribbon
     await initializeRibbon();
-    // Add persistent reference cube
-    addPersistentTestCube();
     // Initialize drawing manager
     drawingManager = new DrawingManager(drawCanvas, handleDrawingComplete);
 
@@ -123,26 +110,6 @@ startAppBtn.addEventListener('click', async () => {
     startAppBtn.disabled = false;
   }
 });
-
-// Add a persistent cube at the origin so we can tell if
-// the 3D scene is being rendered, independent of the ribbon.
-function addPersistentTestCube() {
-  if (!scene) return;
-  if (testCube) {
-    scene.remove(testCube);
-    testCube.geometry?.dispose?.();
-    testCube.material?.dispose?.();
-    testCube = null;
-  }
-
-  const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-  const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-  testCube = new THREE.Mesh(geometry, material);
-  testCube.position.set(0, 0, 0);
-  scene.add(testCube);
-
-  console.log('[Main] Persistent test cube added');
-}
 
 // --- UI toggle for drawing mode ---
 function setDrawingMode(enableDrawing) {
@@ -175,53 +142,6 @@ function setDrawingMode(enableDrawing) {
 drawToggleBtn.addEventListener('click', () => setDrawingMode(true));
 viewToggleBtn.addEventListener('click', () => setDrawingMode(false));
 
-// Debug / test controls
-if (restartLoopBtn) {
-  restartLoopBtn.addEventListener('click', () => {
-    console.log('[UI] Restart Loop button clicked');
-    restartRenderLoop();
-  });
-}
-
-if (backendToggleBtn) {
-  backendToggleBtn.addEventListener('click', () => {
-    // Toggle desired backend flag
-    useWebGLOnly = !useWebGLOnly;
-    const mode = useWebGLOnly ? 'webgl' : 'auto';
-    backendToggleBtn.textContent = useWebGLOnly ? 'Backend: WebGL-only' : 'Backend: Auto/WebGPU';
-    console.log('[UI] Backend toggle changed', { useWebGLOnly, mode });
-
-    // Update URL with backend query param and reload via location
-    const url = new URL(window.location.href);
-    url.searchParams.set('backend', mode);
-    window.location.href = url.toString();
-  });
-
-  // Initialize button label based on current URL setting
-  backendToggleBtn.textContent = useWebGLOnly
-    ? 'Backend: WebGL-only'
-    : 'Backend: Auto/WebGPU';
-}
-
-if (materialModeToggleBtn) {
-  materialModeToggleBtn.addEventListener('click', () => {
-    if (rendererType !== 'webgpu') return;
-
-    const current = materialParam === 'basic' ? 'basic' : 'node';
-    const newMode = current === 'node' ? 'basic' : 'node';
-    console.log('[UI] Material mode toggle requested', { newMode });
-
-    // Update URL with material query param and reload via location
-    const url = new URL(window.location.href);
-    url.searchParams.set('material', newMode);
-    window.location.href = url.toString();
-  });
-
-  // Initialize label
-  const initialMode = materialParam === 'basic' ? 'basic' : 'node';
-  materialModeToggleBtn.textContent = initialMode === 'node' ? 'Material: Node' : 'Material: Basic';
-}
-
 // --- Replay Drawing Button (Experiment 1) ---
 // Helper to update button labels with current position
 function updateHistoryUI() {
@@ -231,12 +151,12 @@ function updateHistoryUI() {
     } else if (historyIndex < 0) {
       replayDrawingBtn.textContent = `History (${capturedDrawings.length})`;
     } else {
-      // Show user-logged status indicator if available
-      const drawing = capturedDrawings[historyIndex];
-      const statusIcon = drawing.userFeedback === 'success' ? '✓' :
-        drawing.userFeedback === 'fail' ? '✗' : '?';
-      replayDrawingBtn.textContent = `${historyIndex + 1}/${capturedDrawings.length} ${statusIcon}`;
+      replayDrawingBtn.textContent = `${historyIndex + 1}/${capturedDrawings.length}`;
     }
+  }
+  // Show/hide delete button based on whether a drawing is selected
+  if (clearDrawingsBtn) {
+    clearDrawingsBtn.style.display = (historyIndex >= 0 && capturedDrawings.length > 0) ? '' : 'none';
   }
 }
 
@@ -249,122 +169,6 @@ function saveDrawingsToStorage() {
     console.warn('[PointCapture] Failed to save to localStorage:', e);
     return false;
   }
-}
-
-// Helper to log user feedback for current drawing
-function logUserFeedback(feedback) {
-  if (historyIndex < 0 || historyIndex >= capturedDrawings.length) {
-    console.warn('[PointCapture] No drawing selected to log feedback for');
-    alert('Please navigate to a drawing first using the history buttons.');
-    return;
-  }
-
-  const drawing = capturedDrawings[historyIndex];
-  drawing.userFeedback = feedback; // 'success' or 'fail'
-  drawing.feedbackTimestamp = new Date().toISOString();
-
-  console.log(`[PointCapture] Drawing #${drawing.id} logged as ${feedback.toUpperCase()}`, {
-    id: drawing.id,
-    pointCount: drawing.points.length,
-    userFeedback: feedback,
-    rendererType: drawing.rendererType
-  });
-
-  saveDrawingsToStorage();
-  updateHistoryUI();
-}
-
-// Helper to export all captured drawings to console for analysis
-function exportDrawingsForAnalysis() {
-  if (capturedDrawings.length === 0) {
-    console.warn('[PointCapture] No drawings to export');
-    alert('No captured drawings to export.');
-    return;
-  }
-
-  // Build entire output as a single string for easy copy in Eruda
-  const lines = [];
-
-  // Summary statistics
-  const successCount = capturedDrawings.filter(d => d.userFeedback === 'success').length;
-  const failCount = capturedDrawings.filter(d => d.userFeedback === 'fail').length;
-  const unknownCount = capturedDrawings.filter(d => !d.userFeedback).length;
-
-  lines.push('='.repeat(60));
-  lines.push('[PointCapture] DRAWINGS EXPORT FOR ANALYSIS');
-  lines.push('='.repeat(60));
-  lines.push(`Total: ${capturedDrawings.length} | Success: ${successCount} | Fail: ${failCount} | Unlabeled: ${unknownCount}`);
-  lines.push('-'.repeat(60));
-
-  // Log each drawing with key metrics
-  capturedDrawings.forEach((drawing, idx) => {
-    const points = drawing.points;
-    const bounds = calculatePointBounds(points);
-
-    lines.push('');
-    lines.push(`[Drawing ${idx + 1}/${capturedDrawings.length}] ID: ${drawing.id}`);
-    lines.push(`  Status: ${drawing.userFeedback || 'unlabeled'} | Renderer: ${drawing.rendererType}`);
-    lines.push(`  Points: ${points.length} | Viewport: ${drawing.viewport?.width}x${drawing.viewport?.height}`);
-    lines.push(`  Bounds: X[${bounds.minX.toFixed(1)}, ${bounds.maxX.toFixed(1)}] Y[${bounds.minY.toFixed(1)}, ${bounds.maxY.toFixed(1)}]`);
-    lines.push(`  Size: ${bounds.width.toFixed(1)} x ${bounds.height.toFixed(1)} | Aspect: ${bounds.aspect.toFixed(2)}`);
-    lines.push(`  Timestamp: ${drawing.timestamp}`);
-  });
-
-  // Also log comparison between success and fail cases
-  if (successCount > 0 && failCount > 0) {
-    lines.push('');
-    lines.push('[PointCapture] SUCCESS vs FAIL COMPARISON:');
-    const successDrawings = capturedDrawings.filter(d => d.userFeedback === 'success');
-    const failDrawings = capturedDrawings.filter(d => d.userFeedback === 'fail');
-
-    const avgSuccessPoints = successDrawings.reduce((sum, d) => sum + d.points.length, 0) / successDrawings.length;
-    const avgFailPoints = failDrawings.reduce((sum, d) => sum + d.points.length, 0) / failDrawings.length;
-
-    lines.push(`  Avg points - Success: ${avgSuccessPoints.toFixed(1)} | Fail: ${avgFailPoints.toFixed(1)}`);
-
-    // Compare bounds
-    const successBounds = successDrawings.map(d => calculatePointBounds(d.points));
-    const failBounds = failDrawings.map(d => calculatePointBounds(d.points));
-
-    const avgSuccessWidth = successBounds.reduce((sum, b) => sum + b.width, 0) / successBounds.length;
-    const avgFailWidth = failBounds.reduce((sum, b) => sum + b.width, 0) / failBounds.length;
-    const avgSuccessHeight = successBounds.reduce((sum, b) => sum + b.height, 0) / successBounds.length;
-    const avgFailHeight = failBounds.reduce((sum, b) => sum + b.height, 0) / failBounds.length;
-
-    lines.push(`  Avg width - Success: ${avgSuccessWidth.toFixed(1)} | Fail: ${avgFailWidth.toFixed(1)}`);
-    lines.push(`  Avg height - Success: ${avgSuccessHeight.toFixed(1)} | Fail: ${avgFailHeight.toFixed(1)}`);
-  }
-
-  lines.push('');
-  lines.push('='.repeat(60));
-  lines.push('[PointCapture] RAW JSON (copy for external analysis):');
-  lines.push('='.repeat(60));
-  lines.push(JSON.stringify(capturedDrawings, null, 2));
-  lines.push('='.repeat(60));
-
-  // Single console.log for easy copy in Eruda
-  console.log(lines.join('\n'));
-}
-
-// Helper to calculate bounds of point array
-function calculatePointBounds(points) {
-  if (!points || points.length === 0) {
-    return { minX: 0, maxX: 0, minY: 0, maxY: 0, width: 0, height: 0, aspect: 1 };
-  }
-
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  points.forEach(p => {
-    minX = Math.min(minX, p.x);
-    maxX = Math.max(maxX, p.x);
-    minY = Math.min(minY, p.y);
-    maxY = Math.max(maxY, p.y);
-  });
-
-  const width = maxX - minX;
-  const height = maxY - minY;
-  const aspect = height > 0 ? width / height : 1;
-
-  return { minX, maxX, minY, maxY, width, height, aspect };
 }
 
 // Helper to replay a specific drawing by index
@@ -461,41 +265,43 @@ if (replayNextBtn) {
   });
 }
 
-// --- Clear Drawings Button ---
+// --- Clear Current Drawing Button ---
 if (clearDrawingsBtn) {
   clearDrawingsBtn.addEventListener('click', () => {
-    const count = capturedDrawings.length;
-    capturedDrawings = [];
-    drawingCounter = 0;
-    historyIndex = -1;
-    try {
-      localStorage.removeItem(CAPTURED_DRAWINGS_KEY);
-      console.log(`[PointCapture] Cleared ${count} captured drawings`);
-      alert(`Cleared ${count} captured drawings`);
-    } catch (e) {
-      console.warn('[PointCapture] Failed to clear localStorage:', e);
+    if (capturedDrawings.length === 0 || historyIndex < 0) {
+      alert('No drawing selected to delete.');
+      return;
     }
+
+    const deletedDrawing = capturedDrawings[historyIndex];
+    capturedDrawings.splice(historyIndex, 1);
+
+    console.log(`[PointCapture] Deleted drawing #${deletedDrawing.id}`);
+
+    // Adjust history index after deletion
+    if (capturedDrawings.length === 0) {
+      historyIndex = -1;
+    } else if (historyIndex >= capturedDrawings.length) {
+      historyIndex = capturedDrawings.length - 1;
+    }
+
+    // Persist to localStorage
+    try {
+      if (capturedDrawings.length > 0) {
+        localStorage.setItem(CAPTURED_DRAWINGS_KEY, JSON.stringify(capturedDrawings));
+      } else {
+        localStorage.removeItem(CAPTURED_DRAWINGS_KEY);
+      }
+    } catch (e) {
+      console.warn('[PointCapture] Failed to save to localStorage:', e);
+    }
+
     updateHistoryUI();
-  });
-}
 
-// --- Log Success/Fail Buttons ---
-if (logSuccessBtn) {
-  logSuccessBtn.addEventListener('click', () => {
-    logUserFeedback('success');
-  });
-}
-
-if (logFailBtn) {
-  logFailBtn.addEventListener('click', () => {
-    logUserFeedback('fail');
-  });
-}
-
-// --- Export Drawings Button ---
-if (exportDrawingsBtn) {
-  exportDrawingsBtn.addEventListener('click', () => {
-    exportDrawingsForAnalysis();
+    // If there are remaining drawings, show the one at current index
+    if (capturedDrawings.length > 0 && historyIndex >= 0) {
+      replayDrawingAtIndex(historyIndex);
+    }
   });
 }
 

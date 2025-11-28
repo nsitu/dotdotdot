@@ -16,7 +16,7 @@ export class DrawingManager {
         this.onDrawingComplete = onDrawingComplete;
         this.points = [];
         this.isActive = false;
-        this.minPointDistance = 3; // Minimum pixels between points to avoid duplicates
+        this.minPointDistance = 2; // Minimum pixels between points to avoid duplicates
         this.resize(window.innerWidth, window.innerHeight);
 
 
