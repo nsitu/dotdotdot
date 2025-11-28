@@ -10,6 +10,9 @@ export const materialModeToggleBtn = document.getElementById('materialModeToggle
 export const replayDrawingBtn = document.getElementById('replayDrawingBtn');
 export const replayPrevBtn = document.getElementById('replayPrevBtn');
 export const replayNextBtn = document.getElementById('replayNextBtn');
+export const logSuccessBtn = document.getElementById('logSuccessBtn');
+export const logFailBtn = document.getElementById('logFailBtn');
+export const exportDrawingsBtn = document.getElementById('exportDrawingsBtn');
 export const clearDrawingsBtn = document.getElementById('clearDrawingsBtn');
 // Canvas element
 export const drawCanvas = document.getElementById('drawCanvas');
