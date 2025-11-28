@@ -70,7 +70,6 @@ export class Ribbon {
             }
         }
 
-        return segments;
     }
 
     buildSegmentedRibbon(points, width, time) {

@@ -10,6 +10,10 @@ import {
   restartLoopBtn,
   backendToggleBtn,
   materialModeToggleBtn,
+  replayDrawingBtn,
+  replayPrevBtn,
+  replayNextBtn,
+  clearDrawingsBtn,
   fileInput,
   checkerboardDiv,
   welcomeScreen,
@@ -35,6 +39,23 @@ const backendParam = urlParams.get('backend');
 const materialParam = urlParams.get('material'); // 'node' | 'basic'
 let useWebGLOnly = backendParam === 'webgl'; // quick backend toggle flag
 let currentRenderLoop = null; // for restartable WebGL loop
+
+// --- Point Capture/Replay for Debugging (Experiment 1) ---
+let capturedDrawings = []; // Array of {id, timestamp, points, rendererType, success}
+let drawingCounter = 0;
+let historyIndex = -1; // Current position in history (-1 means no selection, will show latest on first replay)
+const CAPTURED_DRAWINGS_KEY = 'dotdotdot_capturedDrawings';
+
+// Load any previously captured drawings from localStorage
+try {
+  const stored = localStorage.getItem(CAPTURED_DRAWINGS_KEY);
+  if (stored) {
+    capturedDrawings = JSON.parse(stored);
+    console.log(`[PointCapture] Loaded ${capturedDrawings.length} drawings from localStorage`);
+  }
+} catch (e) {
+  console.warn('[PointCapture] Failed to load from localStorage:', e);
+}
 
 // Initialize app after user clicks start button
 startAppBtn.addEventListener('click', async () => {
@@ -198,6 +219,135 @@ if (materialModeToggleBtn) {
   materialModeToggleBtn.textContent = initialMode === 'node' ? 'Material: Node' : 'Material: Basic';
 }
 
+// --- Replay Drawing Button (Experiment 1) ---
+// Helper to update button labels with current position
+function updateHistoryUI() {
+  if (replayDrawingBtn) {
+    if (capturedDrawings.length === 0) {
+      replayDrawingBtn.textContent = 'History (0)';
+    } else if (historyIndex < 0) {
+      replayDrawingBtn.textContent = `History (${capturedDrawings.length})`;
+    } else {
+      replayDrawingBtn.textContent = `${historyIndex + 1}/${capturedDrawings.length}`;
+    }
+  }
+}
+
+// Helper to replay a specific drawing by index
+function replayDrawingAtIndex(index) {
+  if (capturedDrawings.length === 0) {
+    console.warn('[PointCapture] No captured drawings to replay');
+    return false;
+  }
+
+  // Clamp index to valid range
+  index = Math.max(0, Math.min(index, capturedDrawings.length - 1));
+  historyIndex = index;
+
+  const drawing = capturedDrawings[index];
+  console.log(`[PointCapture] Replaying drawing #${drawing.id} (${index + 1}/${capturedDrawings.length})`, {
+    pointCount: drawing.points.length,
+    originalRenderer: drawing.rendererType,
+    currentRenderer: rendererType,
+    originalSuccess: drawing.success,
+    timestamp: drawing.timestamp
+  });
+
+  // Replay the drawing through the same pipeline
+  if (ribbon && drawing.points.length >= 2) {
+    resetCamera();
+    const result = ribbon.createRibbonFromDrawing(drawing.points);
+    const replaySuccess = ribbon.meshSegments?.length > 0;
+    console.log(`[PointCapture] Replay result: ${replaySuccess ? 'SUCCESS' : 'FAILED'}`, {
+      segmentCount: ribbon.meshSegments?.length || 0,
+      originalSuccess: drawing.success
+    });
+
+    // Force render
+    if (renderer && scene && camera) {
+      renderer.render(scene, camera);
+    }
+  }
+
+  updateHistoryUI();
+  return true;
+}
+
+if (replayDrawingBtn) {
+  replayDrawingBtn.addEventListener('click', () => {
+    if (capturedDrawings.length === 0) {
+      alert('No captured drawings available. Draw something first!');
+      return;
+    }
+
+    // If no current selection, start at the most recent
+    if (historyIndex < 0) {
+      historyIndex = capturedDrawings.length - 1;
+    }
+    replayDrawingAtIndex(historyIndex);
+  });
+}
+
+// --- History Navigation Buttons ---
+if (replayPrevBtn) {
+  replayPrevBtn.addEventListener('click', () => {
+    if (capturedDrawings.length === 0) {
+      alert('No captured drawings available.');
+      return;
+    }
+    // Move backward in history
+    if (historyIndex < 0) {
+      historyIndex = capturedDrawings.length - 1; // Start at end if not set
+    } else if (historyIndex > 0) {
+      historyIndex--;
+    } else {
+      console.log('[PointCapture] Already at oldest drawing');
+      return; // Already at the beginning
+    }
+    replayDrawingAtIndex(historyIndex);
+  });
+}
+
+if (replayNextBtn) {
+  replayNextBtn.addEventListener('click', () => {
+    if (capturedDrawings.length === 0) {
+      alert('No captured drawings available.');
+      return;
+    }
+    // Move forward in history
+    if (historyIndex < 0) {
+      historyIndex = 0; // Start at beginning if not set
+    } else if (historyIndex < capturedDrawings.length - 1) {
+      historyIndex++;
+    } else {
+      console.log('[PointCapture] Already at newest drawing');
+      return; // Already at the end
+    }
+    replayDrawingAtIndex(historyIndex);
+  });
+}
+
+// --- Clear Drawings Button ---
+if (clearDrawingsBtn) {
+  clearDrawingsBtn.addEventListener('click', () => {
+    const count = capturedDrawings.length;
+    capturedDrawings = [];
+    drawingCounter = 0;
+    historyIndex = -1;
+    try {
+      localStorage.removeItem(CAPTURED_DRAWINGS_KEY);
+      console.log(`[PointCapture] Cleared ${count} captured drawings`);
+      alert(`Cleared ${count} captured drawings`);
+    } catch (e) {
+      console.warn('[PointCapture] Failed to clear localStorage:', e);
+    }
+    updateHistoryUI();
+  });
+}
+
+// Initialize history UI on page load
+updateHistoryUI();
+
 // Truncate toggle button
 truncateToggleBtn.addEventListener('click', () => {
   if (ribbon) {
@@ -325,6 +475,24 @@ function handleDrawingComplete(points) {
     sceneExists: !!scene
   });
 
+  // --- Point Capture (Experiment 1) ---
+  const drawingId = ++drawingCounter;
+  const capturedEntry = {
+    id: drawingId,
+    timestamp: new Date().toISOString(),
+    points: points.map(p => ({ x: p.x, y: p.y })), // Store raw 2D points
+    rendererType: rendererType,
+    viewport: { width: window.innerWidth, height: window.innerHeight },
+    success: null // Will be updated after ribbon creation attempt
+  };
+  console.log(`[PointCapture] Drawing #${drawingId} captured`, {
+    pointCount: points.length,
+    firstPoint: points[0],
+    lastPoint: points[points.length - 1]
+  });
+  // Log as copyable JSON for manual replay
+  console.log(`[PointCapture] Drawing #${drawingId} JSON:`, JSON.stringify(capturedEntry.points));
+
   if (points.length >= 2) {
     console.log('[Main] Resetting camera before ribbon creation');
     // Reset camera before building the new ribbon
@@ -341,8 +509,28 @@ function handleDrawingComplete(points) {
       cameraPos: camera.position
     });
 
+    // --- Update capture entry with success status ---
+    capturedEntry.success = ribbon.meshSegments?.length > 0;
+    capturedEntry.segmentCount = ribbon.meshSegments?.length || 0;
+    capturedDrawings.push(capturedEntry);
+    // Keep only last 20 drawings to avoid localStorage bloat
+    if (capturedDrawings.length > 20) {
+      capturedDrawings = capturedDrawings.slice(-20);
+    }
+    // Persist to localStorage
+    try {
+      localStorage.setItem(CAPTURED_DRAWINGS_KEY, JSON.stringify(capturedDrawings));
+      console.log(`[PointCapture] Drawing #${drawingId} saved (success=${capturedEntry.success})`);
+    } catch (e) {
+      console.warn('[PointCapture] Failed to save to localStorage:', e);
+    }
+    // Reset history index to point to newest and update UI
+    historyIndex = capturedDrawings.length - 1;
+    updateHistoryUI();
+
+    const showDiagnostics = true; // Set to true to enable detailed logging
     // Automatic diagnostics: log geometry/material stats for current ribbon segments
-    if (ribbon && Array.isArray(ribbon.meshSegments)) {
+    if (showDiagnostics && ribbon && Array.isArray(ribbon.meshSegments)) {
       const segmentSummaries = ribbon.meshSegments.map((mesh, index) => {
         if (!mesh) return { index, missing: true };
 
@@ -409,6 +597,7 @@ function handleDrawingComplete(points) {
         rendererType,
         segmentCount: ribbon.meshSegments.length,
         segmentSummaries,
+        rawSegments: ribbon.meshSegments,
         camera: {
           position: camera ? camera.position.clone() : null,
           rotation: camera ? camera.rotation.clone() : null

@@ -7,6 +7,10 @@ export const startAppBtn = document.getElementById('startAppBtn');
 export const restartLoopBtn = document.getElementById('restartLoopBtn');
 export const backendToggleBtn = document.getElementById('backendToggleBtn');
 export const materialModeToggleBtn = document.getElementById('materialModeToggleBtn');
+export const replayDrawingBtn = document.getElementById('replayDrawingBtn');
+export const replayPrevBtn = document.getElementById('replayPrevBtn');
+export const replayNextBtn = document.getElementById('replayNextBtn');
+export const clearDrawingsBtn = document.getElementById('clearDrawingsBtn');
 // Canvas element
 export const drawCanvas = document.getElementById('drawCanvas');
 // Other elements
