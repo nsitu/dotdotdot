@@ -331,6 +331,34 @@ export class Ribbon {
         }));
     }
 
+    /**
+     * Remove duplicate/near-duplicate points that could cause CatmullRom degeneracy
+     * NOTE: if duplicate points slip through the capture filter (2px), they'll be caught here after normalization.
+     * @param {Array<THREE.Vector3>} points - Array of 3D points
+     * @param {number} minDist - Minimum distance between consecutive points
+     * @returns {Array<THREE.Vector3>} Cleaned points array
+     */
+    sanitizePoints(points, minDist = 0.001) {
+        if (points.length < 2) return points;
+
+        const cleaned = [points[0]];
+        for (let i = 1; i < points.length; i++) {
+            const dist = points[i].distanceTo(cleaned[cleaned.length - 1]);
+            if (dist >= minDist) {
+                cleaned.push(points[i]);
+            }
+        }
+
+        if (cleaned.length < 2) {
+            console.warn('[Ribbon] After sanitization, not enough distinct points:', {
+                original: points.length,
+                cleaned: cleaned.length
+            });
+        }
+
+        return cleaned;
+    }
+
     smoothPoints(points, numSamples = 100) {
         if (points.length < 2) return points;
 
@@ -364,8 +392,11 @@ export class Ribbon {
         //     count: points3D.length
         // });
 
+        // Sanitize points to remove duplicates that could cause CatmullRom degeneracy
+        const sanitizedPoints = this.sanitizePoints(points3D);
+
         // Apply smoothing
-        const smoothedPoints = this.smoothPoints(points3D, 150);
+        const smoothedPoints = this.smoothPoints(sanitizedPoints, 150);
         // console.log('[Ribbon] Smoothed points', {
         //     count: smoothedPoints.length
         // });
