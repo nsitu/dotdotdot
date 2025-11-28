@@ -13,6 +13,9 @@ import {
   replayDrawingBtn,
   replayPrevBtn,
   replayNextBtn,
+  logSuccessBtn,
+  logFailBtn,
+  exportDrawingsBtn,
   clearDrawingsBtn,
   fileInput,
   checkerboardDiv,
@@ -228,9 +231,140 @@ function updateHistoryUI() {
     } else if (historyIndex < 0) {
       replayDrawingBtn.textContent = `History (${capturedDrawings.length})`;
     } else {
-      replayDrawingBtn.textContent = `${historyIndex + 1}/${capturedDrawings.length}`;
+      // Show user-logged status indicator if available
+      const drawing = capturedDrawings[historyIndex];
+      const statusIcon = drawing.userFeedback === 'success' ? '✓' :
+        drawing.userFeedback === 'fail' ? '✗' : '?';
+      replayDrawingBtn.textContent = `${historyIndex + 1}/${capturedDrawings.length} ${statusIcon}`;
     }
   }
+}
+
+// Helper to save drawings to localStorage
+function saveDrawingsToStorage() {
+  try {
+    localStorage.setItem(CAPTURED_DRAWINGS_KEY, JSON.stringify(capturedDrawings));
+    return true;
+  } catch (e) {
+    console.warn('[PointCapture] Failed to save to localStorage:', e);
+    return false;
+  }
+}
+
+// Helper to log user feedback for current drawing
+function logUserFeedback(feedback) {
+  if (historyIndex < 0 || historyIndex >= capturedDrawings.length) {
+    console.warn('[PointCapture] No drawing selected to log feedback for');
+    alert('Please navigate to a drawing first using the history buttons.');
+    return;
+  }
+
+  const drawing = capturedDrawings[historyIndex];
+  drawing.userFeedback = feedback; // 'success' or 'fail'
+  drawing.feedbackTimestamp = new Date().toISOString();
+
+  console.log(`[PointCapture] Drawing #${drawing.id} logged as ${feedback.toUpperCase()}`, {
+    id: drawing.id,
+    pointCount: drawing.points.length,
+    userFeedback: feedback,
+    rendererType: drawing.rendererType
+  });
+
+  saveDrawingsToStorage();
+  updateHistoryUI();
+}
+
+// Helper to export all captured drawings to console for analysis
+function exportDrawingsForAnalysis() {
+  if (capturedDrawings.length === 0) {
+    console.warn('[PointCapture] No drawings to export');
+    alert('No captured drawings to export.');
+    return;
+  }
+
+  // Build entire output as a single string for easy copy in Eruda
+  const lines = [];
+
+  // Summary statistics
+  const successCount = capturedDrawings.filter(d => d.userFeedback === 'success').length;
+  const failCount = capturedDrawings.filter(d => d.userFeedback === 'fail').length;
+  const unknownCount = capturedDrawings.filter(d => !d.userFeedback).length;
+
+  lines.push('='.repeat(60));
+  lines.push('[PointCapture] DRAWINGS EXPORT FOR ANALYSIS');
+  lines.push('='.repeat(60));
+  lines.push(`Total: ${capturedDrawings.length} | Success: ${successCount} | Fail: ${failCount} | Unlabeled: ${unknownCount}`);
+  lines.push('-'.repeat(60));
+
+  // Log each drawing with key metrics
+  capturedDrawings.forEach((drawing, idx) => {
+    const points = drawing.points;
+    const bounds = calculatePointBounds(points);
+
+    lines.push('');
+    lines.push(`[Drawing ${idx + 1}/${capturedDrawings.length}] ID: ${drawing.id}`);
+    lines.push(`  Status: ${drawing.userFeedback || 'unlabeled'} | Renderer: ${drawing.rendererType}`);
+    lines.push(`  Points: ${points.length} | Viewport: ${drawing.viewport?.width}x${drawing.viewport?.height}`);
+    lines.push(`  Bounds: X[${bounds.minX.toFixed(1)}, ${bounds.maxX.toFixed(1)}] Y[${bounds.minY.toFixed(1)}, ${bounds.maxY.toFixed(1)}]`);
+    lines.push(`  Size: ${bounds.width.toFixed(1)} x ${bounds.height.toFixed(1)} | Aspect: ${bounds.aspect.toFixed(2)}`);
+    lines.push(`  Timestamp: ${drawing.timestamp}`);
+  });
+
+  // Also log comparison between success and fail cases
+  if (successCount > 0 && failCount > 0) {
+    lines.push('');
+    lines.push('[PointCapture] SUCCESS vs FAIL COMPARISON:');
+    const successDrawings = capturedDrawings.filter(d => d.userFeedback === 'success');
+    const failDrawings = capturedDrawings.filter(d => d.userFeedback === 'fail');
+
+    const avgSuccessPoints = successDrawings.reduce((sum, d) => sum + d.points.length, 0) / successDrawings.length;
+    const avgFailPoints = failDrawings.reduce((sum, d) => sum + d.points.length, 0) / failDrawings.length;
+
+    lines.push(`  Avg points - Success: ${avgSuccessPoints.toFixed(1)} | Fail: ${avgFailPoints.toFixed(1)}`);
+
+    // Compare bounds
+    const successBounds = successDrawings.map(d => calculatePointBounds(d.points));
+    const failBounds = failDrawings.map(d => calculatePointBounds(d.points));
+
+    const avgSuccessWidth = successBounds.reduce((sum, b) => sum + b.width, 0) / successBounds.length;
+    const avgFailWidth = failBounds.reduce((sum, b) => sum + b.width, 0) / failBounds.length;
+    const avgSuccessHeight = successBounds.reduce((sum, b) => sum + b.height, 0) / successBounds.length;
+    const avgFailHeight = failBounds.reduce((sum, b) => sum + b.height, 0) / failBounds.length;
+
+    lines.push(`  Avg width - Success: ${avgSuccessWidth.toFixed(1)} | Fail: ${avgFailWidth.toFixed(1)}`);
+    lines.push(`  Avg height - Success: ${avgSuccessHeight.toFixed(1)} | Fail: ${avgFailHeight.toFixed(1)}`);
+  }
+
+  lines.push('');
+  lines.push('='.repeat(60));
+  lines.push('[PointCapture] RAW JSON (copy for external analysis):');
+  lines.push('='.repeat(60));
+  lines.push(JSON.stringify(capturedDrawings, null, 2));
+  lines.push('='.repeat(60));
+
+  // Single console.log for easy copy in Eruda
+  console.log(lines.join('\n'));
+}
+
+// Helper to calculate bounds of point array
+function calculatePointBounds(points) {
+  if (!points || points.length === 0) {
+    return { minX: 0, maxX: 0, minY: 0, maxY: 0, width: 0, height: 0, aspect: 1 };
+  }
+
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  points.forEach(p => {
+    minX = Math.min(minX, p.x);
+    maxX = Math.max(maxX, p.x);
+    minY = Math.min(minY, p.y);
+    maxY = Math.max(maxY, p.y);
+  });
+
+  const width = maxX - minX;
+  const height = maxY - minY;
+  const aspect = height > 0 ? width / height : 1;
+
+  return { minX, maxX, minY, maxY, width, height, aspect };
 }
 
 // Helper to replay a specific drawing by index
@@ -342,6 +476,26 @@ if (clearDrawingsBtn) {
       console.warn('[PointCapture] Failed to clear localStorage:', e);
     }
     updateHistoryUI();
+  });
+}
+
+// --- Log Success/Fail Buttons ---
+if (logSuccessBtn) {
+  logSuccessBtn.addEventListener('click', () => {
+    logUserFeedback('success');
+  });
+}
+
+if (logFailBtn) {
+  logFailBtn.addEventListener('click', () => {
+    logUserFeedback('fail');
+  });
+}
+
+// --- Export Drawings Button ---
+if (exportDrawingsBtn) {
+  exportDrawingsBtn.addEventListener('click', () => {
+    exportDrawingsForAnalysis();
   });
 }
 

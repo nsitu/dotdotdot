@@ -8,6 +8,14 @@ Procedurally generated "ribbons" (meshes built from user-drawn paths) sometimes 
 
 ---
 
+## Key Finding from Experiment 1
+
+**Observation:** When a drawing fails to render, replaying the same points consistently fails. When a drawing succeeds, replaying consistently succeeds. This strongly suggests the issue is **deterministic based on the point data itself**, not a timing/context issue.
+
+**Implication:** There is something about certain point patterns or resulting geometry that causes WebGPU to fail silently.
+
+---
+
 ## Experiment 1: Capture Drawn Points for Replay ✅ IMPLEMENTED
 
 **Goal:** Isolate whether the issue is in the drawing input or the rendering context by enabling exact replay of failed drawings.
@@ -18,7 +26,10 @@ Procedurally generated "ribbons" (meshes built from user-drawn paths) sometimes 
 3. ✅ Add history navigation with ◀ Prev / Current / Next ▶ buttons
 4. ✅ Persist to `localStorage` for cross-session replay (keeps last 20 drawings)
 5. ✅ Add "Clear Drawings" button to reset captured data
-6. ✅ Display current position (e.g., "3/10") when navigating history
+6. ✅ Display current position (e.g., "3/10 ✓" or "3/10 ✗") when navigating history
+7. ✅ Add "✓ OK" / "✗ Fail" buttons for user to manually log render success/failure
+8. ✅ Add "Export" button to dump all drawings with analysis to console
+9. ✅ Store `userFeedback` ('success' | 'fail') per drawing in localStorage
 
 **Captured Data per Drawing:**
 - `id`: Sequential drawing number
@@ -26,15 +37,26 @@ Procedurally generated "ribbons" (meshes built from user-drawn paths) sometimes 
 - `points`: Array of {x, y} raw screen coordinates
 - `rendererType`: 'webgl' or 'webgpu'
 - `viewport`: {width, height} at time of drawing
-- `success`: Boolean indicating if segments were created
+- `success`: Boolean indicating if segments were created (programmatic)
 - `segmentCount`: Number of ribbon segments created
+- `userFeedback`: 'success' | 'fail' (user-logged visual confirmation)
+- `feedbackTimestamp`: When user logged the feedback
 
 **Console Output:**
 - `[PointCapture] Drawing #N captured` - Summary when drawing starts
 - `[PointCapture] Drawing #N JSON:` - Copyable JSON for manual replay
 - `[PointCapture] Drawing #N saved` - Confirmation of localStorage save
+- `[PointCapture] Drawing #N logged as SUCCESS/FAIL` - User feedback logged
+- `[PointCapture] DRAWINGS EXPORT FOR ANALYSIS` - Full analysis dump with:
+  - Summary statistics (success/fail/unlabeled counts)
+  - Per-drawing metrics (bounds, size, aspect ratio)
+  - Success vs Fail comparison (avg points, avg dimensions)
+  - Raw JSON for external analysis
 
-**Expected Insight:** If replaying the same points sometimes works and sometimes fails, the bug is context-dependent (timing, GPU state). If the same points consistently fail, the bug may be in the geometry generation for that specific path shape.
+**Next Steps:**
+- Collect multiple success and fail samples on Android/WebGPU
+- Use Export to analyze patterns in point bounds, aspect ratios, point counts
+- Look for thresholds or edge cases that trigger failure
 
 ---
 
