@@ -60,12 +60,12 @@ export class DrawingManager {
         if (!this.isActive) return;
 
         console.log('[Drawing] Pointer down - starting new drawing', {
-            position: { x: e.clientX, y: e.clientY },
+            position: { x: Math.round(e.clientX), y: Math.round(e.clientY) },
             pointerId: e.pointerId
         });
 
         this.points = [];
-        this.points.push({ x: e.clientX, y: e.clientY });
+        this.points.push({ x: Math.round(e.clientX), y: Math.round(e.clientY) });
         this.clearCanvas();
         this.canvas.setPointerCapture(e.pointerId);
     }
@@ -77,14 +77,14 @@ export class DrawingManager {
     handlePointerMove(e) {
         if (!this.isActive || e.buttons !== 1) return;
 
-        this.points.push({ x: e.clientX, y: e.clientY });
+        this.points.push({ x: Math.round(e.clientX), y: Math.round(e.clientY) });
         this.drawStroke();
 
         // Log periodically (every 10 points) to avoid spam
         if (this.points.length % 10 === 0) {
             console.log('[Drawing] Collecting points...', {
                 pointCount: this.points.length,
-                lastPoint: { x: e.clientX, y: e.clientY }
+                lastPoint: { x: Math.round(e.clientX), y: Math.round(e.clientY) }
             });
         }
     }
