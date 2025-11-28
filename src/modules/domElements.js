@@ -10,6 +10,8 @@ export const replayDrawingBtn = document.getElementById('replayDrawingBtn');
 export const replayPrevBtn = document.getElementById('replayPrevBtn');
 export const replayNextBtn = document.getElementById('replayNextBtn');
 export const clearDrawingsBtn = document.getElementById('clearDrawingsBtn');
+export const finishDrawingBtn = document.getElementById('finishDrawingBtn');
+export const countdownSecondsSpan = document.getElementById('countdownSeconds');
 // Canvas element
 export const drawCanvas = document.getElementById('drawCanvas');
 // Other elements

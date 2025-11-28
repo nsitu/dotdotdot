@@ -9,6 +9,7 @@ export class Ribbon {
         this.lastPoints = [];
         this.lastWidth = 1;
         this.truncateSegments = false; // Toggle for segment gaps
+        this.segmentOffset = 0; // Offset for texture indexing (used in RibbonSeries)
 
         // Animation parameters
         this.waveAmplitude = 0.2;
@@ -18,6 +19,17 @@ export class Ribbon {
 
     setTileManager(tileManager) {
         this.tileManager = tileManager;
+        return this;
+    }
+
+    /**
+     * Set the segment offset for texture indexing
+     * Used by RibbonSeries for continuous texture tiling across multiple ribbons
+     * @param {number} offset - The segment offset
+     * @returns {Ribbon} this for chaining
+     */
+    setSegmentOffset(offset) {
+        this.segmentOffset = offset;
         return this;
     }
 
@@ -253,13 +265,14 @@ export class Ribbon {
 
         // Prefer KTX2 array material if available; fallback to JPG texture
         let material = null;
+        const textureIndex = segmentIndex + this.segmentOffset; // Apply offset for RibbonSeries
         if (this.tileManager && typeof this.tileManager.getMaterial === 'function') {
-            material = this.tileManager.getMaterial(segmentIndex) || null;
+            material = this.tileManager.getMaterial(textureIndex) || null;
             // console.log('[Ribbon] Segment', segmentIndex, 'material from tileManager:', !!material);
         }
 
         if (!material) {
-            const tileTexture = this.tileManager.getTile(segmentIndex);
+            const tileTexture = this.tileManager.getTile(textureIndex);
             material = new THREE.MeshBasicMaterial({
                 map: tileTexture,
                 side: THREE.DoubleSide
