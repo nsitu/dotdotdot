@@ -623,6 +623,7 @@ resizeCanvas();
 
 // --- Drawing callback ---
 function handleDrawingComplete(points) {
+  // Points are already integers (converted at capture time in DrawingManager)
   console.log('[Main] handleDrawingComplete called', {
     pointCount: points.length,
     ribbonExists: !!ribbon,
@@ -634,7 +635,7 @@ function handleDrawingComplete(points) {
   const capturedEntry = {
     id: drawingId,
     timestamp: new Date().toISOString(),
-    points: points.map(p => ({ x: p.x, y: p.y })), // Store raw 2D points
+    points: points, // Already integers from DrawingManager
     rendererType: rendererType,
     viewport: { width: window.innerWidth, height: window.innerHeight },
     success: null // Will be updated after ribbon creation attempt
@@ -645,7 +646,7 @@ function handleDrawingComplete(points) {
     lastPoint: points[points.length - 1]
   });
   // Log as copyable JSON for manual replay
-  console.log(`[PointCapture] Drawing #${drawingId} JSON:`, JSON.stringify(capturedEntry.points));
+  console.log(`[PointCapture] Drawing #${drawingId} JSON:`, JSON.stringify(points));
 
   if (points.length >= 2) {
     console.log('[Main] Resetting camera before ribbon creation');
