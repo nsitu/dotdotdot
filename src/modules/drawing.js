@@ -16,10 +16,28 @@ export class DrawingManager {
         this.onDrawingComplete = onDrawingComplete;
         this.points = [];
         this.isActive = false;
+        this.minPointDistance = 3; // Minimum pixels between points to avoid duplicates
         this.resize(window.innerWidth, window.innerHeight);
 
 
         this.initEventListeners();
+    }
+
+    /**
+     * Check if a new point is far enough from the last captured point
+     * @param {number} x - New point x coordinate
+     * @param {number} y - New point y coordinate
+     * @returns {boolean} True if point should be added
+     */
+    shouldAddPoint(x, y) {
+        if (this.points.length === 0) return true;
+
+        const lastPoint = this.points[this.points.length - 1];
+        const dx = x - lastPoint.x;
+        const dy = y - lastPoint.y;
+        const distanceSquared = dx * dx + dy * dy;
+
+        return distanceSquared >= this.minPointDistance * this.minPointDistance;
     }
 
     /**
@@ -77,14 +95,20 @@ export class DrawingManager {
     handlePointerMove(e) {
         if (!this.isActive || e.buttons !== 1) return;
 
-        this.points.push({ x: Math.round(e.clientX), y: Math.round(e.clientY) });
-        this.drawStroke();
+        const x = Math.round(e.clientX);
+        const y = Math.round(e.clientY);
+
+        // Only add point if it's far enough from the last one
+        if (this.shouldAddPoint(x, y)) {
+            this.points.push({ x, y });
+            this.drawStroke();
+        }
 
         // Log periodically (every 10 points) to avoid spam
         if (this.points.length % 10 === 0) {
             console.log('[Drawing] Collecting points...', {
                 pointCount: this.points.length,
-                lastPoint: { x: Math.round(e.clientX), y: Math.round(e.clientY) }
+                lastPoint: { x, y }
             });
         }
     }
