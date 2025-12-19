@@ -116,7 +116,7 @@ export class TileManager {
         const GITHUB_RELEASES = {
             'skating-512.zip': 'https://github.com/nsitu/dotdotdot/releases/download/textures/skating-512.zip'
         };
-        
+
         // Use GitHub Releases URL if available, otherwise fall back to local path
         return GITHUB_RELEASES[source] || `./${source}`;
     }
