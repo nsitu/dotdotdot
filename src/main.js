@@ -14,6 +14,7 @@ import {
   replayNextBtn,
   clearDrawingsBtn,
   finishDrawingBtn,
+  fullscreenBtn,
   countdownSecondsSpan,
   fileInput,
   checkerboardDiv,
@@ -27,6 +28,9 @@ import { RibbonSeries } from './modules/ribbonSeries.js';
 import { DrawingManager } from './modules/drawing.js';
 import { TileManager } from './modules/tileManager.js';
 import * as THREE from 'three';
+
+// Configuration
+const RIBBON_RESOLUTION = 500; // Number of points per path - higher = smoother ribbon
 
 let scene, camera, renderer, controls, resetCamera, rendererType;
 
@@ -85,17 +89,38 @@ startAppBtn.addEventListener('click', async () => {
     rendererIndicator.className = `renderer-indicator ${rendererType}`;
 
     // Initialize tile manager 
-    //(use KTX2 arrays by default; 
-    // choose waves for loop or planes for ping-pong)
-    // source: 'ktx2-waves' or 'ktx2-planes' or 'jpg'
+    // Default: load from zip file (skating-512.zip)
+    // Other options: 'ktx2-planes', 'ktx2-waves', 'jpg', or any zip filename
     tileManager = new TileManager({
-      source: 'ktx2-planes',
+      // source: 'skating-512.zip', // This is now the default
       renderer,
       rendererType,
       rotate90: true,
-      webgpuMaterialMode: 'node'
+      webgpuMaterialMode: 'node',
+      onProgress: (stage, current, total) => {
+        if (stage === 'downloading') {
+          startAppBtn.textContent = 'Downloading textures...';
+        } else if (stage === 'extracting') {
+          const percentage = Math.round((current / total) * 100);
+          startAppBtn.textContent = `Extracting textures: ${percentage}%`;
+        } else if (stage === 'building') {
+          const percentage = Math.round((current / total) * 100);
+          startAppBtn.textContent = `Building materials: ${percentage}%`;
+        }
+      }
     });
     await tileManager.loadAllTiles();
+
+    // Create sky sphere for ambient gradient background
+    if (threeContext.createSkySphere) {
+      try {
+        const firstMaterial = tileManager.isKTX2 ? tileManager.getMaterial(0) : null;
+        await threeContext.createSkySphere(firstMaterial);
+        console.log('[App] Sky sphere created successfully');
+      } catch (err) {
+        console.error('[App] Failed to create sky sphere:', err);
+      }
+    }
 
     // Hide welcome screen
     welcomeScreen.style.display = 'none';
@@ -396,9 +421,9 @@ async function initializeRibbon() {
     truncateToggleBtn.classList.toggle('active', ribbon.truncateSegments);
 
     // Try to load the SVG path (use multi-path for SVG files)
-    const response = await fetch('./R.svg');
+    const response = await fetch('./jj.svg');
     const svgText = await response.text();
-    const pathsPoints = parseSvgContentMultiPath(svgText, 80, 5, 0);
+    const pathsPoints = parseSvgContentMultiPath(svgText, RIBBON_RESOLUTION, 5, 0);
 
     if (pathsPoints && pathsPoints.length > 0) {
       // Use multi-path normalization to keep paths in shared coordinate space
@@ -705,6 +730,42 @@ window.addEventListener('beforeunload', () => {
   }
 });
 
+// --- Fullscreen toggle ---
+if (fullscreenBtn) {
+  fullscreenBtn.addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+      // Enter fullscreen
+      document.documentElement.requestFullscreen().catch(err => {
+        console.warn('[App] Could not enter fullscreen:', err);
+      });
+    } else {
+      // Exit fullscreen
+      document.exitFullscreen().catch(err => {
+        console.warn('[App] Could not exit fullscreen:', err);
+      });
+    }
+  });
+
+  // Update button icon when fullscreen state changes
+  document.addEventListener('fullscreenchange', () => {
+    if (document.fullscreenElement) {
+      fullscreenBtn.title = 'Exit fullscreen';
+      fullscreenBtn.innerHTML = `
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
+        </svg>
+      `;
+    } else {
+      fullscreenBtn.title = 'Toggle fullscreen';
+      fullscreenBtn.innerHTML = `
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+        </svg>
+      `;
+    }
+  });
+}
+
 if (importSvgBtn && fileInput) {
   // Handle import button click
   importSvgBtn.addEventListener('click', () => {
@@ -721,7 +782,7 @@ if (importSvgBtn && fileInput) {
         const svgText = await file.text();
 
         // Use multi-path parsing to extract all paths
-        const pathsPoints = parseSvgContentMultiPath(svgText, 80, 5, 0);
+        const pathsPoints = parseSvgContentMultiPath(svgText, RIBBON_RESOLUTION, 5, 0);
 
         if (pathsPoints && pathsPoints.length > 0) {
           // Use multi-path normalization to keep paths in shared coordinate space
