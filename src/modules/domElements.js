@@ -11,6 +11,7 @@ export const replayPrevBtn = document.getElementById('replayPrevBtn');
 export const replayNextBtn = document.getElementById('replayNextBtn');
 export const clearDrawingsBtn = document.getElementById('clearDrawingsBtn');
 export const finishDrawingBtn = document.getElementById('finishDrawingBtn');
+export const fullscreenBtn = document.getElementById('fullscreenBtn');
 export const countdownSecondsSpan = document.getElementById('countdownSeconds');
 // Canvas element
 export const drawCanvas = document.getElementById('drawCanvas');
