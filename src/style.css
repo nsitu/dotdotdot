@@ -328,10 +328,44 @@ body.app-active #importSvgBtn {
 }
 
 @keyframes pulse-btn {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4);
   }
+
   50% {
     box-shadow: 0 0 0 8px rgba(76, 175, 80, 0);
   }
+}
+
+/* Fullscreen button */
+#fullscreenBtn {
+  background: #444;
+}
+
+#fullscreenBtn:hover {
+  background: #666;
+}
+
+/* Hide all UI elements in fullscreen mode */
+:fullscreen #modeToggleButtons,
+:fullscreen #finishDrawingBtn,
+:fullscreen #truncateToggleBtn,
+:fullscreen #importSvgBtn,
+:fullscreen #debugControls,
+:fullscreen #rendererIndicator,
+:fullscreen #checkerboard {
+  display: none !important;
+}
+
+/* WebKit prefix for Safari */
+:-webkit-full-screen #modeToggleButtons,
+:-webkit-full-screen #finishDrawingBtn,
+:-webkit-full-screen #truncateToggleBtn,
+:-webkit-full-screen #importSvgBtn,
+:-webkit-full-screen #debugControls,
+:-webkit-full-screen #rendererIndicator,
+:-webkit-full-screen #checkerboard {
+  display: none !important;
 }
