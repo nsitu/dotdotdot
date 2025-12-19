@@ -35,7 +35,8 @@ export class TileManager {
 
         // Check if source is a zip file
         this.isZip = typeof source === 'string' && source.endsWith('.zip');
-        this.zipUrl = this.isZip ? `./${source}` : null;
+        // Use GitHub Releases for large zip files, local path for others
+        this.zipUrl = this.isZip ? this.#getZipUrl(source) : null;
         this.zipFiles = null; // Will store extracted files as { '0.ktx2': Uint8Array, ... }
 
         this.isKTX2 = typeof source === 'string' && (source.startsWith('ktx2') || source.endsWith('.zip'));
@@ -108,6 +109,16 @@ export class TileManager {
             console.log(`[TileManager] Loaded ${this.tiles.length} JPG textures`);
             return this.tiles;
         }
+    }
+
+    // Map zip filenames to their URLs (GitHub Releases for large files)
+    #getZipUrl(source) {
+        const GITHUB_RELEASES = {
+            'skating-512.zip': 'https://github.com/nsitu/dotdotdot/releases/download/textures/skating-512.zip'
+        };
+        
+        // Use GitHub Releases URL if available, otherwise fall back to local path
+        return GITHUB_RELEASES[source] || `./${source}`;
     }
 
     async #extractZipFile() {
