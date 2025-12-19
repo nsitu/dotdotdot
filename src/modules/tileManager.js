@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import * as THREE_WEBGPU from 'three/webgpu';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+import JSZip from 'jszip';
 
 // TSL imports for WebGPU materials
 import { texture, uniform, uv, float, vec2 } from 'three/tsl';
@@ -8,12 +9,16 @@ import { texture, uniform, uv, float, vec2 } from 'three/tsl';
 export class TileManager {
     constructor(options = {}) {
         const {
-            source = 'jpg',
+            source = 'skating-512.zip', // Default to zip file
             renderer = null,
             rendererType = 'webgl',
             tileCount = 32,
-            rotate90 = false
+            rotate90 = false,
+            onProgress = null // Callback for progress updates: (stage, current, total) => {}
         } = options;
+
+        // Progress callback
+        this.onProgress = onProgress;
 
         // General
         this.tileCount = tileCount;
@@ -27,9 +32,15 @@ export class TileManager {
 
         // KTX2 path
         this.materials = [];
-        this.isKTX2 = typeof source === 'string' && source.startsWith('ktx2');
-        this.variant = this.isKTX2 ? (source.endsWith('planes') ? 'planes' : 'waves') : null;
-        this.folder = this.isKTX2
+
+        // Check if source is a zip file
+        this.isZip = typeof source === 'string' && source.endsWith('.zip');
+        this.zipUrl = this.isZip ? `./${source}` : null;
+        this.zipFiles = null; // Will store extracted files as { '0.ktx2': Uint8Array, ... }
+
+        this.isKTX2 = typeof source === 'string' && (source.startsWith('ktx2') || source.endsWith('.zip'));
+        this.variant = this.isKTX2 ? (source.endsWith('planes') || source.includes('planes') ? 'planes' : 'waves') : null;
+        this.folder = this.isKTX2 && !this.isZip
             ? (this.variant === 'planes' ? './tiles-ktx2-planes' : './tiles-ktx2-waves')
             : './tiles-numbered';
 
@@ -51,6 +62,16 @@ export class TileManager {
     }
 
     async loadAllTiles() {
+        // If using zip, extract files first
+        if (this.isZip) {
+            const extracted = await this.#extractZipFile();
+            if (!extracted) {
+                console.warn('[TileManager] Failed to extract zip file, falling back to JPG textures');
+                this.isKTX2 = false;
+                this.isZip = false;
+            }
+        }
+
         if (this.isKTX2) {
             const ok = await this.#initKTX2();
             if (!ok) {
@@ -59,9 +80,21 @@ export class TileManager {
             }
         }
 
+        // Report initial building progress
+        if (this.onProgress) {
+            this.onProgress('building', 0, this.tileCount);
+        }
+
         const promises = [];
         for (let i = 0; i < this.tileCount; i++) {
-            promises.push(this.isKTX2 ? this.#loadKTX2Tile(i) : this.#loadJPGTile(i));
+            const promise = (this.isKTX2 ? this.#loadKTX2Tile(i) : this.#loadJPGTile(i)).then(result => {
+                // Report progress after each tile is loaded
+                if (this.onProgress) {
+                    this.onProgress('building', i + 1, this.tileCount);
+                }
+                return result;
+            });
+            promises.push(promise);
         }
 
         const results = await Promise.all(promises);
@@ -74,6 +107,65 @@ export class TileManager {
             this.tiles = results;
             console.log(`[TileManager] Loaded ${this.tiles.length} JPG textures`);
             return this.tiles;
+        }
+    }
+
+    async #extractZipFile() {
+        try {
+            console.log(`[TileManager] Fetching zip file: ${this.zipUrl}`);
+
+            // Report downloading stage
+            if (this.onProgress) {
+                this.onProgress('downloading', 0, 1);
+            }
+
+            const response = await fetch(this.zipUrl);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch zip file: ${response.statusText}`);
+            }
+
+            const arrayBuffer = await response.arrayBuffer();
+            console.log(`[TileManager] Zip file fetched, size: ${arrayBuffer.byteLength} bytes`);
+
+            const zip = new JSZip();
+            const zipData = await zip.loadAsync(arrayBuffer);
+
+            // Count ktx2 files first
+            const ktx2Files = [];
+            zipData.forEach((relativePath, file) => {
+                if (relativePath.endsWith('.ktx2')) {
+                    ktx2Files.push({ relativePath, file });
+                }
+            });
+
+            const totalFiles = ktx2Files.length;
+            console.log(`[TileManager] Found ${totalFiles} KTX2 files to extract`);
+
+            // Extract all ktx2 files into memory with progress tracking
+            this.zipFiles = {};
+            let extractedCount = 0;
+
+            // Report initial extraction progress
+            if (this.onProgress) {
+                this.onProgress('extracting', 0, totalFiles);
+            }
+
+            for (const { relativePath, file } of ktx2Files) {
+                const data = await file.async('uint8array');
+                this.zipFiles[relativePath] = data;
+                extractedCount++;
+
+                // Report progress after each file
+                if (this.onProgress) {
+                    this.onProgress('extracting', extractedCount, totalFiles);
+                }
+            }
+
+            console.log(`[TileManager] Extracted ${Object.keys(this.zipFiles).length} KTX2 files from zip`);
+            return true;
+        } catch (error) {
+            console.error('[TileManager] Failed to extract zip file:', error);
+            return false;
         }
     }
 
@@ -261,54 +353,116 @@ export class TileManager {
                 return;
             }
 
-            const url = `${this.folder}/${index}.ktx2`;
-            this._ktx2Loader.load(
-                url,
-                (arrayTexture) => {
-                    // Configure array texture
-                    arrayTexture.flipY = false; // shader flips V
-                    arrayTexture.generateMipmaps = false;
-                    const hasMips = Array.isArray(arrayTexture.mipmaps) && arrayTexture.mipmaps.length > 1;
-                    arrayTexture.minFilter = hasMips ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
-                    arrayTexture.magFilter = THREE.LinearFilter;
-                    arrayTexture.wrapS = THREE.ClampToEdgeWrapping;
-                    arrayTexture.wrapT = THREE.ClampToEdgeWrapping;
+            // If loading from zip, use the extracted data
+            if (this.isZip && this.zipFiles) {
+                const filename = `${index}.ktx2`;
+                const fileData = this.zipFiles[filename];
 
-                    // Set color space for WebGL to match WebGPU brightness
-                    if (this.rendererType === 'webgl') {
-                        arrayTexture.colorSpace = THREE.LinearSRGBColorSpace;
-                    }
-
-                    if (this.layerCount === 0) {
-                        this.layerCount = arrayTexture.image?.depth || 1;
-                        // Reset cycling state
-                        this.currentLayer = 0;
-                        this.direction = 1;
-                        this.sharedLayerUniform.value = 0;
-                    } else {
-                        const depth = arrayTexture.image?.depth || 1;
-                        if (depth !== this.layerCount) {
-                            console.warn(`[TileManager] Tile ${index} depth (${depth}) != layerCount (${this.layerCount}); will clamp when cycling`);
-                        }
-                    }
-
-                    const material = this.#createArrayMaterial(arrayTexture);
-                    resolve(material);
-                },
-                undefined,
-                (error) => {
-                    console.error(`[TileManager] Failed to load KTX2 tile ${index}:`, error);
-                    console.error(`[TileManager] Error details:`, {
-                        message: error?.message,
-                        stack: error?.stack,
-                        name: error?.name,
-                        errorString: String(error)
-                    });
-                    // Create a fallback solid-color material to keep app running
+                if (!fileData) {
+                    console.error(`[TileManager] File ${filename} not found in zip`);
                     const fallback = new THREE.MeshBasicMaterial({ color: new THREE.Color(`hsl(${index * 11}, 70%, 50%)`) });
                     resolve(fallback);
+                    return;
                 }
-            );
+
+                // Parse the KTX2 file from the Uint8Array buffer
+                this._ktx2Loader.parse(
+                    fileData.buffer,
+                    (arrayTexture) => {
+                        // Configure array texture
+                        arrayTexture.flipY = false; // shader flips V
+                        arrayTexture.generateMipmaps = false;
+                        const hasMips = Array.isArray(arrayTexture.mipmaps) && arrayTexture.mipmaps.length > 1;
+                        arrayTexture.minFilter = hasMips ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
+                        arrayTexture.magFilter = THREE.LinearFilter;
+                        arrayTexture.wrapS = THREE.ClampToEdgeWrapping;
+                        arrayTexture.wrapT = THREE.ClampToEdgeWrapping;
+
+                        // Set color space for WebGL to match WebGPU brightness
+                        if (this.rendererType === 'webgl') {
+                            arrayTexture.colorSpace = THREE.LinearSRGBColorSpace;
+                        }
+
+                        if (this.layerCount === 0) {
+                            this.layerCount = arrayTexture.image?.depth || 1;
+                            // Reset cycling state
+                            this.currentLayer = 0;
+                            this.direction = 1;
+                            this.sharedLayerUniform.value = 0;
+                        } else {
+                            const depth = arrayTexture.image?.depth || 1;
+                            if (depth !== this.layerCount) {
+                                console.warn(`[TileManager] Tile ${index} depth (${depth}) != layerCount (${this.layerCount}); will clamp when cycling`);
+                            }
+                        }
+
+                        const material = this.#createArrayMaterial(arrayTexture);
+                        resolve(material);
+                    },
+                    (error) => {
+                        console.error(`[TileManager] Failed to parse KTX2 tile ${index} from zip:`, error);
+                        console.error(`[TileManager] Error details:`, {
+                            message: error?.message,
+                            stack: error?.stack,
+                            name: error?.name,
+                            errorString: String(error)
+                        });
+                        // Create a fallback solid-color material to keep app running
+                        const fallback = new THREE.MeshBasicMaterial({ color: new THREE.Color(`hsl(${index * 11}, 70%, 50%)`) });
+                        resolve(fallback);
+                    }
+                );
+            } else {
+                // Loading from folder (original behavior)
+                const url = `${this.folder}/${index}.ktx2`;
+                this._ktx2Loader.load(
+                    url,
+                    (arrayTexture) => {
+                        // Configure array texture
+                        arrayTexture.flipY = false; // shader flips V
+                        arrayTexture.generateMipmaps = false;
+                        const hasMips = Array.isArray(arrayTexture.mipmaps) && arrayTexture.mipmaps.length > 1;
+                        arrayTexture.minFilter = hasMips ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
+                        arrayTexture.magFilter = THREE.LinearFilter;
+                        arrayTexture.wrapS = THREE.ClampToEdgeWrapping;
+                        arrayTexture.wrapT = THREE.ClampToEdgeWrapping;
+
+                        // Set color space for WebGL to match WebGPU brightness
+                        if (this.rendererType === 'webgl') {
+                            arrayTexture.colorSpace = THREE.LinearSRGBColorSpace;
+                        }
+
+                        if (this.layerCount === 0) {
+                            this.layerCount = arrayTexture.image?.depth || 1;
+                            // Reset cycling state
+                            this.currentLayer = 0;
+                            this.direction = 1;
+                            this.sharedLayerUniform.value = 0;
+                        } else {
+                            const depth = arrayTexture.image?.depth || 1;
+                            if (depth !== this.layerCount) {
+                                console.warn(`[TileManager] Tile ${index} depth (${depth}) != layerCount (${this.layerCount}); will clamp when cycling`);
+                            }
+                        }
+
+                        const material = this.#createArrayMaterial(arrayTexture);
+                        resolve(material);
+                    },
+                    undefined,
+                    (error) => {
+                        console.error(`[TileManager] Failed to load KTX2 tile ${index}:`, error);
+                        console.error(`[TileManager] Error details:`, {
+                            message: error?.message,
+                            stack: error?.stack,
+                            name: error?.name,
+                            errorString: String(error)
+                        });
+                        // Create a fallback solid-color material to keep app running
+                        const fallback = new THREE.MeshBasicMaterial({ color: new THREE.Color(`hsl(${index * 11}, 70%, 50%)`) });
+                        resolve(fallback);
+                    }
+                );
+            }
         });
     }
 
