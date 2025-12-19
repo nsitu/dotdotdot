@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+public/skating-512.zip
+public/boardwalk-256.zip
