@@ -115,20 +115,20 @@ export class TileManager {
     // Note: GitHub Releases doesn't support CORS, so we use a proxy for cross-origin requests
     #getZipUrl(source) {
         const GITHUB_RELEASES = {
-            'skating-512.zip': 'https://github.com/nsitu/dotdotdot/releases/download/textures/skating-512.zip'
+            'skating-512.zip': 'https://github.com/nsitu/rivvon/releases/download/textures/skating-512.zip'
         };
 
         const releaseUrl = GITHUB_RELEASES[source];
         if (releaseUrl) {
             // Check if we're on the same origin (local dev) or need CORS proxy
-            const isLocalDev = window.location.hostname === 'localhost' || 
-                               window.location.hostname === '127.0.0.1';
-            
+            const isLocalDev = window.location.hostname === 'localhost' ||
+                window.location.hostname === '127.0.0.1';
+
             if (isLocalDev) {
                 // Local development can use the URL directly (or local file)
                 return `./${source}`;
             }
-            
+
             // For production (GitHub Pages), use corsproxy.io to bypass CORS
             return `https://corsproxy.io/?${encodeURIComponent(releaseUrl)}`;
         }

@@ -45,7 +45,7 @@ let currentRenderLoop = null; // for restartable WebGL loop
 let capturedDrawings = []; // Array of {id, timestamp, points, rendererType, success}
 let drawingCounter = 0;
 let historyIndex = -1; // Current position in history (-1 means no selection, will show latest on first replay)
-const CAPTURED_DRAWINGS_KEY = 'dotdotdot_capturedDrawings';
+const CAPTURED_DRAWINGS_KEY = 'rivvon_capturedDrawings';
 
 // Load any previously captured drawings from localStorage
 try {
